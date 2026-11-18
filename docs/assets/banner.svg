@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 460" width="1200" height="460" role="img" aria-label="Grand Theft Auto V — Los Santos 3D Browser Clone">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#18345e"/>
+      <stop offset="38%" stop-color="#5b4d7a"/>
+      <stop offset="70%" stop-color="#d97548"/>
+      <stop offset="92%" stop-color="#f7b96b"/>
+      <stop offset="100%" stop-color="#fde199"/>
+    </linearGradient>
+    <radialGradient id="sunGlow" cx="0.72" cy="0.68" r="0.34">
+      <stop offset="0%" stop-color="#fff6d6" stop-opacity="0.95"/>
+      <stop offset="35%" stop-color="#ffb85c" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ff7a3d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ocean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b435e"/>
+      <stop offset="100%" stop-color="#09131d"/>
+    </linearGradient>
+    <linearGradient id="vGreen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#86cf7e"/>
+      <stop offset="50%" stop-color="#3c8a46"/>
+      <stop offset="100%" stop-color="#194521"/>
+    </linearGradient>
+    <linearGradient id="vGold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#c49a3a"/>
+      <stop offset="50%" stop-color="#f8e39c"/>
+      <stop offset="100%" stop-color="#b8892e"/>
+    </linearGradient>
+    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#070a10" stop-opacity="0.28"/>
+      <stop offset="65%" stop-color="#070a10" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#070a10" stop-opacity="0.78"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Golden-hour California sky & sun -->
+  <rect width="1200" height="460" fill="url(#sky)"/>
+  <rect width="1200" height="460" fill="url(#sunGlow)"/>
+  <circle cx="864" cy="306" r="46" fill="#fff3c9" opacity="0.9"/>
+
+  <!-- Distant Vinewood Hills + VINEWOOD sign -->
+  <path d="M0 335 Q140 265 305 292 Q470 250 640 300 Q820 278 1020 315 L1200 332 L1200 365 L0 365 Z" fill="#2c2438" opacity="0.72"/>
+  <text x="195" y="294" fill="#f5efe2" opacity="0.82" font-family="Arial Black, Impact, sans-serif" font-size="13" font-weight="900" letter-spacing="3">VINEWOOD</text>
+
+  <!-- Del Perro Pier & Ferris Wheel (right horizon) -->
+  <g transform="translate(1035, 312)" stroke="#1a1724" fill="none" opacity="0.85">
+    <circle cx="0" cy="-22" r="30" stroke-width="2.5"/>
+    <circle cx="0" cy="-22" r="21" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3 4" opacity="0.75"/>
+    <line x1="0" y1="-52" x2="0" y2="8" stroke-width="1.2"/>
+    <line x1="-30" y1="-22" x2="30" y2="-22" stroke-width="1.2"/>
+    <line x1="-21" y1="-43" x2="21" y2="-1" stroke-width="1.2"/>
+    <line x1="-21" y1="-1" x2="21" y2="-43" stroke-width="1.2"/>
+    <line x1="-14" y1="18" x2="0" y2="-22" stroke-width="3"/>
+    <line x1="14" y1="18" x2="0" y2="-22" stroke-width="3"/>
+  </g>
+  <rect x="955" y="330" width="245" height="9" fill="#171520"/>
+
+  <!-- Downtown Los Santos Skyline (Maze Bank, FIB, IAA, Eclipse) -->
+  <g fill="#151824">
+    <rect x="340" y="268" width="38" height="92"/>
+    <rect x="386" y="238" width="44" height="122"/>
+    <!-- Maze Bank Tower stepped crown -->
+    <rect x="444" y="168" width="54" height="192"/>
+    <rect x="451" y="156" width="40" height="14"/>
+    <rect x="459" y="148" width="24" height="10"/>
+    <!-- FIB & IAA Twin Towers -->
+    <rect x="512" y="198" width="46" height="162"/>
+    <rect x="568" y="206" width="44" height="154"/>
+    <rect x="624" y="246" width="48" height="114"/>
+    <rect x="682" y="262" width="42" height="98"/>
+    <rect x="734" y="284" width="52" height="76"/>
+  </g>
+
+  <!-- Subtle sunlit skyscraper windows -->
+  <g fill="#ffd27d" opacity="0.45">
+    <rect x="454" y="182" width="6" height="3"/><rect x="468" y="182" width="6" height="3"/><rect x="482" y="182" width="6" height="3"/>
+    <rect x="454" y="204" width="6" height="3"/><rect x="482" y="204" width="6" height="3"/>
+    <rect x="468" y="226" width="6" height="3"/><rect x="482" y="248" width="6" height="3"/>
+    <rect x="522" y="214" width="6" height="3"/><rect x="538" y="214" width="6" height="3"/>
+    <rect x="522" y="238" width="6" height="3"/><rect x="578" y="224" width="6" height="3"/>
+    <rect x="594" y="244" width="6" height="3"/><rect x="398" y="256" width="6" height="3"/>
+  </g>
+
+  <!-- Vespucci Pacific Ocean + sun shimmer -->
+  <rect x="0" y="352" width="1200" height="108" fill="url(#ocean)"/>
+  <g fill="#ffd584" opacity="0.42">
+    <rect x="812" y="360" width="104" height="3" rx="1.5"/>
+    <rect x="826" y="370" width="76" height="2.5" rx="1.2"/>
+    <rect x="838" y="380" width="52" height="2" rx="1"/>
+    <rect x="848" y="390" width="32" height="2" rx="1"/>
+  </g>
+
+  <!-- California Palm Silhouettes (left & right framing) -->
+  <g fill="#0c1018">
+    <path d="M92 460 Q106 320 124 212 L131 213 Q115 320 104 460 Z"/>
+    <path d="M127 213 Q88 188 56 206 Q92 205 127 216 Z"/>
+    <path d="M127 213 Q96 168 68 172 Q102 184 127 214 Z"/>
+    <path d="M128 213 Q158 168 192 178 Q156 188 128 215 Z"/>
+    <path d="M128 214 Q170 194 202 216 Q164 208 128 217 Z"/>
+    <path d="M127 215 Q92 216 68 242 Q100 226 127 218 Z"/>
+
+    <path d="M1118 460 Q1104 340 1090 242 L1096 241 Q1112 340 1129 460 Z"/>
+    <path d="M1093 242 Q1058 218 1030 234 Q1062 232 1093 245 Z"/>
+    <path d="M1093 242 Q1124 202 1156 212 Q1122 220 1094 244 Z"/>
+    <path d="M1094 243 Q1132 226 1160 248 Q1126 238 1094 246 Z"/>
+  </g>
+
+  <!-- Subtle cinematic vignette -->
+  <rect width="1200" height="460" fill="url(#vignette)"/>
+
+  <!-- Center Title Lockup + Iconic V Emblem -->
+  <g transform="translate(600, 122)" text-anchor="middle">
+    <text x="-48" y="-18" fill="#ffffff" font-family="Impact, Arial Black, sans-serif" font-size="44" letter-spacing="2" stroke="#080b10" stroke-width="5" paint-order="stroke">GRAND THEFT AUTO</text>
+    <g transform="translate(154, -76) scale(0.72)">
+      <path d="M14 10 L50 10 L75 86 L100 10 L136 10 L92 124 L58 124 Z" fill="url(#vGreen)" stroke="#090c10" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M18 70 Q75 56 132 70 L126 92 Q75 78 24 92 Z" fill="#122615" stroke="url(#vGold)" stroke-width="3"/>
+      <text x="75" y="81" fill="#f7e9be" font-family="Georgia, serif" font-weight="700" font-size="16" letter-spacing="4">FIVE</text>
+    </g>
+    <text x="0" y="14" fill="#f3e7cf" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="13" font-weight="700" letter-spacing="5">LOS SANTOS  •  REAL-TIME 3D WEBGL SANDBOX</text>
+  </g>
+
+  <!-- Minimal GTA V Bottom Bar Strip -->
+  <g transform="translate(42, 404)">
+    <rect x="0" y="0" width="76" height="6" fill="#5ec96f"/>
+    <rect x="80" y="0" width="38" height="6" fill="#59a9e6"/>
+    <rect x="122" y="0" width="38" height="6" fill="#fbbf24"/>
+    <text x="0" y="24" fill="#d6dee8" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="12" font-weight="600" letter-spacing="1.2">THREE.JS  •  GLSL SHADERS  •  W3C GAMEPAD  •  STONEBWOY &amp; KWEKU SMOKE RADIO</text>
+  </g>
+</svg>
