@@ -1,0 +1,18 @@
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+dist
+.vite
+
+# Version control & local state
+.git
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Docs & tooling not needed at runtime
+docs
+tests
+vitest.config.ts
+*.log
+.DS_Store

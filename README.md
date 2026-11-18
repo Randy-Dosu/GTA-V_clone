@@ -39,6 +39,7 @@
 * **Gameplay, UI & Input:** Strict TypeScript (`5.6`), HTML5 Canvas 2D rotating radar & interactive GPS map, Pointer Lock API, W3C Gamepad API with `dual-rumble` haptics
 * **Audio Engine:** Web Audio API (procedural multi-genre sequencer, dub delay, compressor, dynamic engine/drift/siren & weapon SFX) + HTML5 Audio local MP3/M4A/WAV streaming
 * **Build & Dev Tooling:** Vite (`6.x`), ES Modules, zero external runtime asset dependencies
+* **Containerization:** Multi-stage Docker build (`node:22-alpine` → `nginx:alpine`) with Docker Compose on port `5173`
 
 ---
 
@@ -71,5 +72,22 @@
 ---
 
 ## Getting Started
+
+### Docker (Recommended — everything in one container)
+
+```bash
+git clone https://github.com/Randy-Dosu/GTA-V_clone.git
+cd GTA-V_clone
+docker compose up --build
+```
+
+Open `http://localhost:5173` — the multi-stage image builds the game with Node and serves the production bundle via nginx. No Node.js install required on the host.
+
+### Local Development
+
+```bash
+npm install
+npm run dev
+```
 
 For installation, dev/production commands, complete keyboard and controller mappings, gameplay guides, and custom MP3 soundtrack setup, see **[USAGE.md](USAGE.md)**.

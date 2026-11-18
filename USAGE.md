@@ -20,13 +20,30 @@ This guide covers setting up, running, configuring, and playing **Grand Theft Au
 
 ## Prerequisites
 
-* **Node.js** `18.0+` (includes `npm`)
+* **Docker** `24.0+` (with Docker Compose) — *or* **Node.js** `18.0+` (includes `npm`) for local development
 * A modern desktop browser with **WebGL 2** enabled (Chrome, Edge, Firefox, Brave, or Safari)
 * *(Optional)* Any standard USB or Bluetooth controller (Xbox Wireless, PlayStation DualSense / DualShock 4, Pro Controller, or generic W3C-compatible gamepad)
 
 ---
 
 ## Installation & Running
+
+### Option A — Docker (Recommended: everything in one container)
+
+The entire app — build toolchain and production server — runs inside a single multi-stage Docker image (`node:22-alpine` builds the Vite bundle, `nginx:alpine` serves it). No Node.js install needed on the host.
+
+```bash
+git clone https://github.com/Randy-Dosu/GTA-V_clone.git
+cd GTA-V_clone
+docker compose up --build
+```
+
+* Open `http://localhost:5173` in your browser (container port `80` → host `5173`).
+* Stop with `docker compose down`. Rebuild after code changes with `docker compose up --build`.
+* Plain Docker (no Compose): `docker build -t gta-v-los-santos . && docker run --rm -p 5173:80 gta-v-los-santos`
+* Files: `Dockerfile` (multi-stage build), `docker/nginx.conf` (SPA fallback, gzip, asset caching), `docker-compose.yml` (port mapping + healthcheck), `.dockerignore` (excludes `node_modules`, `dist`, `.git`).
+
+### Option B — Local Development (Node.js)
 
 ### 1. Install Dependencies
 
@@ -191,6 +208,10 @@ Every track plays out of the box using a tempo- and key-matched Web Audio instru
 
 ```text
 GTA-V_clone/
+├── Dockerfile                 # Multi-stage production image (Node build → nginx serve)
+├── docker-compose.yml         # One-command container run (5173:80, healthcheck)
+├── docker/
+│   └── nginx.conf             # SPA fallback, gzip, asset caching & security headers
 ├── index.html                 # App shell, HUD, radial wheels, phone, shops & pause menu
 ├── public/
 │   ├── favicon.svg            # GTA V app icon
