@@ -40,7 +40,18 @@ export interface Pedestrian {
   fleeFrom: THREE.Vector3;
   isOfficer: boolean;
   shootTimer: number;
+  /** Display name used by the Groq AI street-talk system */
+  name: string;
 }
+
+/** Street names cycled across the 34 pedestrian NPCs for AI street talk */
+const PED_NAMES = [
+  'Marcus', 'Denise', 'Tyrell', 'Rosa', 'Jamal', 'Priya', 'Diego', 'Keisha',
+  'Big Tone', 'Lil Smokey', 'Frank', 'Angela', 'Vince', 'Tanya', 'Omar', 'Gloria',
+  'DeShawn', 'Marisol', 'Big Rube', 'Cassandra', 'Elroy', 'Nia', 'Paco', 'Tamika',
+  'Wilson', 'Bree', 'Hakeem', 'Sofia', 'Duke', 'Yolanda', 'Chop', 'Reggie',
+  'Vanessa', 'Old Pete',
+];
 
 const PED_SKINS = [
   0xf1c29b, 0xd8a07a, 0x8d5524, 0x5c3822, 0xe6b89c, 0xb87b52,
@@ -227,6 +238,7 @@ export class TrafficAndPeds {
         fleeFrom: new THREE.Vector3(),
         isOfficer: false,
         shootTimer: 0,
+        name: PED_NAMES[i % PED_NAMES.length],
       });
     }
   }
@@ -290,6 +302,21 @@ export class TrafficAndPeds {
       if (d < reach && d < bestD + (v.kind === 'helicopter' ? 1.8 : 0)) {
         bestD = d;
         best = v;
+      }
+    }
+    return best;
+  }
+
+  /** Closest living pedestrian in talking range for the Groq AI street-talk system */
+  public findNearestTalkablePed(pos: THREE.Vector3, maxDist = 3.4): Pedestrian | null {
+    let best: Pedestrian | null = null;
+    let bestD = maxDist;
+    for (const p of this.peds) {
+      if (p.dead) continue;
+      const d = pos.distanceTo(p.pos);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
       }
     }
     return best;

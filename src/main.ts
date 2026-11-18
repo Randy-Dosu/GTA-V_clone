@@ -18,6 +18,8 @@ import {
 import { InputManager } from './core/InputManager';
 import { GP, GamepadManager } from './core/GamepadManager';
 import { AudioEngine } from './core/AudioEngine';
+import { GroqClient } from './ai/GroqClient';
+import { AiDialogue, stripHtml } from './gameplay/AiDialogue';
 import { CameraController } from './core/CameraController';
 import { TextureFactory } from './graphics/TextureFactory';
 import { SkyAndOcean } from './graphics/SkyAndOcean';
@@ -56,12 +58,17 @@ class GTAVGame {
     autoTimeCycle: true,
     showSpeedometer: true,
     graphicsQuality: 'high',
+    aiDialogue: true,
   };
 
   private mode: GameMode = 'title';
   private input: InputManager;
   private gamepad: GamepadManager;
   private audio: AudioEngine;
+  private groq = new GroqClient();
+  private ai: AiDialogue;
+  private talkCooldown = 0;
+  private lastPedTalk = new Map<number, number>();
   private cameraCtrl: CameraController;
   private textures: TextureFactory;
   private sky: SkyAndOcean;
@@ -100,6 +107,7 @@ class GTAVGame {
 
     this.input = new InputManager(this.canvas);
     this.audio = new AudioEngine();
+    this.ai = new AiDialogue(this.groq);
     this.audio.onTrackChange = (song, station) => {
       if (this.ui) {
         this.ui.triggerNowPlaying(song, station);
@@ -242,6 +250,9 @@ class GTAVGame {
     this.audio.setVolumes(s.masterVolume, s.musicVolume, s.sfxVolume);
     this.gamepad.deadzone = s.gamepadDeadzone;
     this.gamepad.vibrationEnabled = s.gamepadVibration;
+    if (!s.aiDialogue) {
+      this.ui?.hideSpeech();
+    }
     const high = s.graphicsQuality === 'high';
     this.sky.setQuality(high);
     const dpr = high ? Math.min(window.devicePixelRatio || 1, 2) : 1;
@@ -939,6 +950,19 @@ class GTAVGame {
         gp.rumble(0.3, 0.4, 140);
         this.missions.startMission(nearbyMission, this.player, (title, sub) => {
           this.ui.showBanner(title.toUpperCase(), sub, '', false, 3.0);
+          // Groq AI in-character briefing from the mission giver
+          const objText = stripHtml(this.missions.getActiveObjective()?.subtitleHtml ?? '');
+          void this.ai
+            .getMissionBriefing(nearbyMission.id, {
+              giver: nearbyMission.giver.split('—')[0].trim(),
+              title: nearbyMission.title,
+              objectiveText: objText || nearbyMission.title,
+            })
+            .then((brief) => {
+              if (this.settings.aiDialogue && this.mode === 'playing') {
+                this.ui.showSpeech(nearbyMission.giver.split('—')[0].trim(), brief.text, 6.2);
+              }
+            });
         });
       }
     }
@@ -949,8 +973,39 @@ class GTAVGame {
       promptHtml = `Press ${enterVehHtml} to enter <b>${nearestCar.spec.brand} ${nearestCar.spec.name}</b>.`;
     }
 
+    // Groq AI Street Talk: chat with the closest pedestrian (T / Y button)
+    this.talkCooldown = Math.max(0, this.talkCooldown - realDt);
+    const talkPed = !pVeh && !promptHtml ? this.traffic.findNearestTalkablePed(this.player.pos) : null;
+    if (talkPed && !phoneOpen) {
+      const talkKeyHtml = isGp ? gp.badge('north') : '<span class="keycap">T</span>';
+      promptHtml = `Press ${talkKeyHtml} to chat with <b>${talkPed.name}</b>.`;
+      const talkPressed = this.input.wasPressed('KeyT') || gp.wasPressed(GP.NORTH);
+      const pedIndex = this.traffic.peds.indexOf(talkPed);
+      const lastTalk = this.lastPedTalk.get(pedIndex) ?? -999;
+      if (talkPressed && this.talkCooldown <= 0 && performance.now() / 1000 - lastTalk > 5) {
+        this.talkCooldown = 2;
+        this.lastPedTalk.set(pedIndex, performance.now() / 1000);
+        talkPed.heading = Math.atan2(this.player.pos.x - talkPed.pos.x, this.player.pos.z - talkPed.pos.z);
+        this.audio.playUiClick(520);
+        void this.ai
+          .getPedLine({
+            name: talkPed.name,
+            x: talkPed.pos.x,
+            z: talkPed.pos.z,
+            hour: this.sky.timeOfDay,
+            wantedLevel: this.police.wantedLevel,
+          })
+          .then((line) => {
+            if (this.settings.aiDialogue) {
+              this.ui.showSpeech(talkPed.name, line.text, 4.6);
+            }
+          });
+      }
+    }
+
     const enterPressed =
       !phoneOpen &&
+      !talkPed &&
       (this.input.wasPressed('KeyF') ||
         gp.wasPressed(GP.NORTH) ||
         (!promptHtml?.includes('Customs') &&

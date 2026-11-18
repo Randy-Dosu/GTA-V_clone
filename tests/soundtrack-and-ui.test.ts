@@ -219,6 +219,7 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
       autoTimeCycle: true,
       showSpeedometer: true,
       graphicsQuality: 'high',
+      aiDialogue: true,
     };
 
     const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
@@ -300,6 +301,14 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     ui.setMode('playing', player, missions, minimap, 17.2);
     ui.updateHUD(0.016, 'playing', player, police, missions, 'Press F to enter');
     minimap.updateRadar(0.016, player, 0, police, missions, traffic.vehicles);
+
+    // Groq AI speech bubble renders & hides
+    ui.showSpeech('Lester Crest', 'The package is real. Move before the heat shows up.', 60);
+    expect(document.getElementById('speech-bubble')!.classList.contains('hidden')).toBe(false);
+    expect(document.getElementById('speech-name')!.textContent).toBe('Lester Crest');
+    expect(document.getElementById('speech-text')!.textContent).toContain('package is real');
+    ui.hideSpeech();
+    expect(document.getElementById('speech-bubble')!.classList.contains('hidden')).toBe(true);
 
     // Gamepad press check unused-import sanity
     expect(GP.START).toBe(9);

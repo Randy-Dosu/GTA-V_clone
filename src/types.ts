@@ -183,6 +183,8 @@ export interface GameSettings {
   autoTimeCycle: boolean;
   showSpeedometer: boolean;
   graphicsQuality: 'high' | 'medium';
+  /** Groq AI-powered street talk & mission briefings */
+  aiDialogue: boolean;
 }
 
 export const CHARACTER_PROFILES: Record<CharacterId, CharacterProfile> = {

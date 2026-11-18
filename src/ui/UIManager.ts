@@ -17,6 +17,7 @@ import { Player } from '../entities/Player';
 import { PoliceSystem } from '../gameplay/PoliceSystem';
 import { MissionSystem } from '../gameplay/MissionSystem';
 import { AudioEngine } from '../core/AudioEngine';
+import { GroqClient } from '../ai/GroqClient';
 import { GP, GamepadManager } from '../core/GamepadManager';
 import { Minimap } from './Minimap';
 
@@ -86,6 +87,11 @@ export class UIManager {
   private toastVeh: HTMLElement;
   private toastStreet: HTMLElement;
   private toastDistrict: HTMLElement;
+
+  private speechBubble: HTMLElement;
+  private speechNameEl: HTMLElement;
+  private speechTextEl: HTMLElement;
+  private speechTimer: number | null = null;
 
   private bigBanner: HTMLElement;
   private bannerTitle: HTMLElement;
@@ -197,6 +203,10 @@ export class UIManager {
     this.toastVeh = $('toast-vehicle');
     this.toastStreet = $('toast-street');
     this.toastDistrict = $('toast-district');
+
+    this.speechBubble = $('speech-bubble');
+    this.speechNameEl = $('speech-name');
+    this.speechTextEl = $('speech-text');
 
     this.nowPlayingEl = $('now-playing');
     this.npDotEl = $('np-dot');
@@ -693,6 +703,39 @@ export class UIManager {
     });
     qRow.appendChild(sel);
     wrap.appendChild(qRow);
+
+    // ===================== Groq AI Dialogue =====================
+    addCheck('Groq AI Dialogue (Street Talk & Briefings)', this.settings.aiDialogue, (v) => (this.settings.aiDialogue = v));
+
+    const aiRow = document.createElement('div');
+    aiRow.className = 'setting-row';
+    aiRow.innerHTML = '<span>Groq API Key <em>(optional, stays on this device)</em></span>';
+    const keyInput = document.createElement('input');
+    keyInput.type = 'password';
+    keyInput.placeholder = 'gsk_… (or set VITE_GROQ_API_KEY in .env)';
+    keyInput.value = GroqClient.getStoredKey();
+    keyInput.style.cssText =
+      'flex:1;max-width:250px;background:#0b0e13;border:1px solid #2a3242;color:#f1f5f9;padding:5px 8px;font-size:12px;';
+    const aiStatus = document.createElement('span');
+    const refreshAiStatus = (): void => {
+      const probe = new GroqClient();
+      aiStatus.textContent =
+        probe.status === 'active'
+          ? '● AI active'
+          : probe.status === 'error'
+            ? '● AI error — using fallback lines'
+            : '● Offline fallback lines';
+      aiStatus.style.cssText = `font-size:11px;color:${probe.status === 'active' ? '#5ec96f' : '#94a3b8'};`;
+    };
+    refreshAiStatus();
+    keyInput.addEventListener('change', () => {
+      GroqClient.setStoredKey(keyInput.value);
+      this.callbacks.onSettingsChanged(this.settings);
+      refreshAiStatus();
+    });
+    aiRow.appendChild(keyInput);
+    aiRow.appendChild(aiStatus);
+    wrap.appendChild(aiRow);
 
     return wrap;
   }
@@ -1799,6 +1842,27 @@ export class UIManager {
       this.flashLayer.style.transition = 'opacity 0.28s ease-out';
       this.flashLayer.style.opacity = '0';
     });
+  }
+
+  /**
+   * Show an in-world speech bubble (Groq AI street talk & mission briefings).
+   * Auto-hides after `durationSec`; on-screen text is capped for readability.
+   */
+  public showSpeech(speaker: string, text: string, durationSec = 5): void {
+    const clean = text.replace(/\s+/g, ' ').trim();
+    this.speechNameEl.textContent = speaker;
+    this.speechTextEl.textContent = clean.length > 190 ? `${clean.slice(0, 187)}…` : clean;
+    this.speechBubble.classList.remove('hidden');
+    if (this.speechTimer !== null) clearTimeout(this.speechTimer);
+    this.speechTimer = window.setTimeout(() => this.hideSpeech(), durationSec * 1000);
+  }
+
+  public hideSpeech(): void {
+    if (this.speechTimer !== null) {
+      clearTimeout(this.speechTimer);
+      this.speechTimer = null;
+    }
+    this.speechBubble.classList.add('hidden');
   }
 
   public triggerNowPlaying(song: SoundtrackSong | null, station: RadioStation): void {

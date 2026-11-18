@@ -123,6 +123,7 @@ npm run preview
 | --- | --- | --- |
 | Character Switch Wheel | Hold `Alt` + `1` / `2` / `3` (or `F1`–`F3`) | Hold `D-Pad Down` + `Right Stick` |
 | Radio Wheel | Hold `Q` + `Mouse` | Hold `D-Pad Left` + `Right Stick` |
+| **AI Street Talk** *(near a pedestrian)* | `T` | `Y` / `△` |
 | Skip to Next Song | `N` | Tap `D-Pad Left` (or `RB` in Radio Wheel) |
 | Cycle Radio Station (Vehicle) | `R` | Hold `D-Pad Left` + `Right Stick` |
 | Open / Close iFruit Phone | `P` or `↑` (`↓` to close) | `D-Pad Up` (`B` / `○` to go back/close) |
@@ -175,6 +176,26 @@ The game includes **9 curated songs** by **Stonebwoy** and **Kweku Smoke** acros
 
 Playback source priority per song: **local import / `manifest.json` file → music API stream → built-in instrumental**.
 
+## Groq AI Dialogue
+
+The city talks back through the **Groq API** (ultra-fast Llama 3.1 inference, `src/ai/GroqClient.ts`):
+
+- **AI Street Talk** — walk up to any pedestrian and press `T` (or `Y` / `△` on gamepad). Their name, district, street, time of day and your wanted level are woven into the prompt, and Llama replies with an in-character one-liner in a speech bubble.
+- **AI Mission Briefings** — starting any of the 6 story missions has the giver (Simeon, Lester, Hao…) deliver a dynamic AI-written briefing in their own voice (cached per mission).
+
+**Setup — choose either (or both; the in-game key wins):**
+
+1. **`.env` file (recommended):** copy `.env.example` to `.env` and paste your key from <https://console.groq.com/keys>:
+   ```
+   VITE_GROQ_API_KEY=gsk_your_key_here
+   ```
+   Vite loads it automatically for `npm run dev`; for Docker pass it at build time: `docker build --build-arg VITE_GROQ_API_KEY=gsk_... .`
+2. **In-game:** **Settings → Groq API Key**, paste and click away — it is stored only in your browser's localStorage and never committed.
+
+`.env` is gitignored and docker-ignored, so your key never lands in the repository or on GitHub.
+
+**Offline / no-key behaviour:** dialogue never breaks the game — with no network, a rate-limited key, or no key at all, built-in canned Los Santos street lines and briefings play instead (status shown live in Settings). Toggle the whole feature with **Settings → Groq AI Dialogue**.
+
 ### Option A — One-Click In-Game Import (Fastest)
 
 1. Open **RADIO** (from the Title Screen or Pause Menu) or **iFruit Phone → iFruit Music**.
@@ -225,6 +246,8 @@ GTA-V_clone/
     ├── audio/
     │   ├── MusicApi.ts         # Apple Music (iTunes Search) API client: resolves & streams real songs
     │   └── SoundtrackData.ts  # 9-track Stonebwoy & Kweku Smoke catalog & arrangements
+    ├── ai/
+    │   └── GroqClient.ts       # Groq API (Llama 3.1) client: key resolution, chat completions
     ├── core/
     │   ├── AudioEngine.ts     # Web Audio sequencer, music-API/MP3 streamer, engine/combat/UI SFX
     │   ├── CameraController.ts# Orbit/chase camera, intro drop, sky-switch & stunt cam
@@ -244,7 +267,8 @@ GTA-V_clone/
     │   ├── CharacterMesh.ts   # Articulated humanoid rig & weapon visuals
     │   └── Player.ts          # Protagonist state, movement, combat & special abilities
     ├── gameplay/
-    │   ├── MissionSystem.ts   # 4 multi-stage Story Missions, markers & timers
+    │   ├── AiDialogue.ts      # Groq AI street talk & mission briefings with offline fallbacks
+    │   ├── MissionSystem.ts   # 6 multi-stage Story Missions, markers & timers
     │   └── PoliceSystem.ts    # 1–5 star LSPD wanted dispatch, pursuit & evasion
     └── ui/
         ├── Minimap.ts         # Rotating 2D radar, GPS route & interactive Pause Map

@@ -16,3 +16,7 @@ tests
 vitest.config.ts
 *.log
 .DS_Store
+
+# Local secrets — pass the key at build time with --build-arg instead
+.env
+.env.local

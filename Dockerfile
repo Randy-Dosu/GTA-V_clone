@@ -14,6 +14,11 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source and build optimized static bundle into /app/dist
+# Optional: pass the Groq AI key at build time:
+#   docker build --build-arg VITE_GROQ_API_KEY=gsk_... -t gta-v-los-santos .
+# Or simply paste the key in-game (Settings) — it persists in the browser.
+ARG VITE_GROQ_API_KEY=""
+ENV VITE_GROQ_API_KEY=$VITE_GROQ_API_KEY
 COPY tsconfig.json vite.config.ts index.html ./
 COPY src ./src
 COPY public ./public
