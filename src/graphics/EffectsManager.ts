@@ -8,8 +8,9 @@ interface Particle {
   startScale: number;
   endScale: number;
   gravity: number;
-  mat: THREE.MeshBasicMaterial;
+  mat: THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
   startOpacity: number;
+  spin?: THREE.Vector3;
 }
 
 interface Tracer {
@@ -116,24 +117,32 @@ export class EffectsManager {
   }
 
   public spawnTireSmoke(pos: THREE.Vector3): void {
-    if (this.particles.length > 180) return;
-    const vel = new THREE.Vector3(
-      (Math.random() - 0.5) * 1.4,
-      0.55 + Math.random() * 0.85,
-      (Math.random() - 0.5) * 1.4
-    );
-    this.spawnParticle(pos, vel, 0xe4e6ea, 0.55 + Math.random() * 0.3, 0.45, 1.9, -0.4, 0.34, false);
+    if (this.particles.length > 260) return;
+    // Voluminous burnout cloud: 2-3 puffs per call
+    const puffs = 2 + (Math.random() < 0.5 ? 1 : 0);
+    for (let i = 0; i < puffs; i++) {
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 1.8,
+        0.5 + Math.random() * 0.9,
+        (Math.random() - 0.5) * 1.8
+      );
+      const jitter = pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5));
+      this.spawnParticle(jitter, vel, 0xe4e6ea, 0.6 + Math.random() * 0.35, 0.5, 2.4, -0.35, 0.3, false);
+    }
   }
 
   public spawnDamageSmoke(pos: THREE.Vector3, burning = false): void {
-    if (this.particles.length > 200) return;
-    const vel = new THREE.Vector3(
-      (Math.random() - 0.5) * 1.2,
-      1.6 + Math.random() * 1.6,
-      (Math.random() - 0.5) * 1.2
-    );
-    const col = burning && Math.random() < 0.45 ? 0xff7722 : 0x33363d;
-    this.spawnParticle(pos, vel, col, 0.75, 0.55, 2.2, -0.5, burning ? 0.65 : 0.42, burning);
+    if (this.particles.length > 300) return;
+    const puffs = burning ? 2 : 1;
+    for (let i = 0; i < puffs; i++) {
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 1.4,
+        1.6 + Math.random() * 1.7,
+        (Math.random() - 0.5) * 1.4
+      );
+      const col = burning && Math.random() < 0.45 ? 0xff7722 : 0x33363d;
+      this.spawnParticle(pos, vel, col, 0.8, 0.6, 2.6, -0.45, burning ? 0.62 : 0.4, burning);
+    }
   }
 
   public spawnNitroFlame(pos: THREE.Vector3, backDir: THREE.Vector3): void {
@@ -239,6 +248,33 @@ export class EffectsManager {
         (Math.random() - 0.5) * 20
       );
       this.spawnParticle(pos, vel, 0xffaa33, 0.8 + Math.random() * 0.5, 1.2, 0.2, 18, 1.0, true, true);
+    }
+
+    // Tumbling metal debris chunks that arc and clatter to the ground
+    for (let i = 0; i < 10; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const spd = 5 + Math.random() * 11;
+      const vel = new THREE.Vector3(Math.cos(a) * spd, 7 + Math.random() * 10, Math.sin(a) * spd);
+      const chunk = new THREE.Mesh(
+        this.boxGeo,
+        new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2b2f36 : 0x4a3a2a, roughness: 0.6, metalness: 0.5 })
+      );
+      chunk.scale.setScalar(0.12 + Math.random() * 0.2);
+      chunk.position.copy(pos).add(new THREE.Vector3(0, 0.6, 0));
+      chunk.castShadow = true;
+      this.scene.add(chunk);
+      this.particles.push({
+        mesh: chunk,
+        vel,
+        life: 1.1 + Math.random() * 0.7,
+        maxLife: 1.6,
+        startScale: chunk.scale.x,
+        endScale: chunk.scale.x,
+        gravity: 16,
+        mat: chunk.material as THREE.MeshStandardMaterial,
+        startOpacity: 1,
+        spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8),
+      });
     }
   }
 
@@ -361,9 +397,24 @@ export class EffectsManager {
       const prog = 1 - p.life / p.maxLife;
       p.vel.y -= p.gravity * dt;
       p.mesh.position.addScaledVector(p.vel, dt);
+      // Debris chunks bounce off the street and tumble
+      if (p.spin && p.mesh.position.y < 0.1) {
+        p.mesh.position.y = 0.1;
+        p.vel.y *= -0.35;
+        p.vel.x *= 0.7;
+        p.vel.z *= 0.7;
+      }
+      if (p.spin) {
+        p.mesh.rotation.x += p.spin.x * dt;
+        p.mesh.rotation.y += p.spin.y * dt;
+        p.mesh.rotation.z += p.spin.z * dt;
+      }
       const s = THREE.MathUtils.lerp(p.startScale, p.endScale, prog);
       p.mesh.scale.setScalar(s);
-      p.mat.opacity = p.startOpacity * (1 - prog * prog);
+      if ('opacity' in p.mat) {
+        p.mat.transparent = p.startOpacity < 1;
+        p.mat.opacity = p.startOpacity * (1 - prog * prog);
+      }
     }
 
     // Tracers

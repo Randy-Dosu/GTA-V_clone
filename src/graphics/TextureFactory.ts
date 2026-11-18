@@ -73,6 +73,53 @@ export class TextureFactory {
       ctx.fillRect(x, y, 2, 2);
     }
 
+    // Asphalt repair patches (darker rectangles with tar-sealed edges)
+    for (let p = 0; p < 5; p++) {
+      const px = Math.random() * size * 0.8;
+      const py = Math.random() * size * 0.8;
+      const pw = 40 + Math.random() * 90;
+      const ph = 30 + Math.random() * 70;
+      ctx.fillStyle = 'rgba(22, 24, 28, 0.5)';
+      ctx.fillRect(px, py, pw, ph);
+      ctx.strokeStyle = 'rgba(12, 13, 16, 0.7)';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(px, py, pw, ph);
+    }
+
+    // Oil stains & tire-polish darkening in wheel paths
+    for (let o = 0; o < 7; o++) {
+      const ox = Math.random() * size;
+      const oy = Math.random() * size;
+      const orad = 12 + Math.random() * 30;
+      const og = ctx.createRadialGradient(ox, oy, 2, ox, oy, orad);
+      og.addColorStop(0, 'rgba(10, 11, 14, 0.5)');
+      og.addColorStop(1, 'rgba(10, 11, 14, 0)');
+      ctx.fillStyle = og;
+      ctx.beginPath();
+      ctx.arc(ox, oy, orad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Manhole covers
+    for (let m = 0; m < 2; m++) {
+      const mx = Math.random() * size;
+      const my = Math.random() * size;
+      ctx.beginPath();
+      ctx.arc(mx, my, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#3a3d43';
+      ctx.fill();
+      ctx.strokeStyle = '#1e2024';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(20,22,26,0.6)';
+      ctx.lineWidth = 1.5;
+      for (let r = 5; r < 13; r += 4) {
+        ctx.beginPath();
+        ctx.arc(mx, my, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
     // Subtle tar cracks
     ctx.strokeStyle = 'rgba(18, 20, 24, 0.35)';
     ctx.lineWidth = 1.2;
@@ -160,6 +207,16 @@ export class TextureFactory {
       ctx.fillRect(size * 0.74 - 2.5, y, 5, h);
     }
 
+    // Worn paint: speckle erasure so markings look driven-over, not fresh
+    ctx.globalCompositeOperation = 'destination-out';
+    for (let w = 0; w < 900; w++) {
+      const wx = Math.random() * size;
+      const wy = Math.random() * size;
+      ctx.fillStyle = `rgba(0,0,0,${0.15 + Math.random() * 0.5})`;
+      ctx.fillRect(wx, wy, 2 + Math.random() * 4, 1 + Math.random() * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
     ctx.restore();
     return this.finalize(c, 1, 1, true);
   }
@@ -234,6 +291,40 @@ export class TextureFactory {
       ctx.beginPath();
       ctx.moveTo(0, i * step);
       ctx.lineTo(size, i * step);
+      ctx.stroke();
+    }
+
+    // Grime, gum spots & cracks for lived-in sidewalks
+    for (let g = 0; g < 40; g++) {
+      const gx = Math.random() * size;
+      const gy = Math.random() * size;
+      const gr = 3 + Math.random() * 10;
+      const gg = ctx.createRadialGradient(gx, gy, 1, gx, gy, gr);
+      gg.addColorStop(0, 'rgba(70, 66, 58, 0.28)');
+      gg.addColorStop(1, 'rgba(70, 66, 58, 0)');
+      ctx.fillStyle = gg;
+      ctx.beginPath();
+      ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(40, 38, 34, 0.5)';
+    for (let gum = 0; gum < 26; gum++) {
+      ctx.beginPath();
+      ctx.arc(Math.random() * size, Math.random() * size, 1.5 + Math.random() * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(80, 76, 68, 0.4)';
+    ctx.lineWidth = 1;
+    for (let cr = 0; cr < 5; cr++) {
+      let x = Math.random() * size;
+      let y = Math.random() * size;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      for (let s = 0; s < 5; s++) {
+        x += (Math.random() - 0.5) * 30;
+        y += (Math.random() - 0.5) * 30;
+        ctx.lineTo(x, y);
+      }
       ctx.stroke();
     }
 

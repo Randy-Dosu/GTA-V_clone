@@ -42,34 +42,120 @@ export class VehicleFactory {
     const tireMat = new THREE.MeshStandardMaterial({ color: 0x17181b, roughness: 0.85, metalness: 0.08 });
     const rimMat = new THREE.MeshStandardMaterial({ color: 0xdbe2ea, roughness: 0.22, metalness: 0.88 });
     const hubMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4, metalness: 0.5 });
+    const discMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.35, metalness: 0.85 });
 
     const tire = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius, width, 16).rotateZ(Math.PI / 2),
+      new THREE.CylinderGeometry(radius, radius, width, 24).rotateZ(Math.PI / 2),
       tireMat
     );
     tire.castShadow = true;
 
+    // Tire tread blocks around the circumference
+    const treadGeo = new THREE.BoxGeometry(width * 0.92, radius * 0.07, radius * 0.16);
+    const treadCount = 22;
+    const treadInst = new THREE.InstancedMesh(treadGeo, tireMat, treadCount);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < treadCount; i++) {
+      const a = (i / treadCount) * Math.PI * 2;
+      dummy.position.set(0, Math.cos(a) * radius * 0.99, Math.sin(a) * radius * 0.99);
+      dummy.rotation.set(a, 0, 0);
+      dummy.updateMatrix();
+      treadInst.setMatrixAt(i, dummy.matrix);
+    }
+    treadInst.instanceMatrix.needsUpdate = true;
+
     const rim = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius * 0.66, radius * 0.66, width + 0.02, 12).rotateZ(Math.PI / 2),
+      new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width + 0.02, 16).rotateZ(Math.PI / 2),
       rimMat
     );
 
-    // Cross spokes so wheel rotation is visibly crisp
-    const spoke1 = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.035, radius * 1.18, radius * 0.16),
-      rimMat
+    // Brake disc behind the rim
+    const disc = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.45, radius * 0.45, width * 0.4, 16).rotateZ(Math.PI / 2),
+      discMat
     );
-    const spoke2 = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.035, radius * 0.16, radius * 1.18),
-      rimMat
+
+    // 5-spoke alloy rim so wheel rotation is visibly crisp
+    for (let i = 0; i < 5; i++) {
+      const spoke = new THREE.Mesh(
+        new THREE.BoxGeometry(width + 0.035, radius * 0.62, radius * 0.13),
+        rimMat
+      );
+      spoke.rotation.x = (i / 5) * Math.PI * 2;
+      g.add(spoke);
+    }
+    const hub = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.14, radius * 0.14, width + 0.04, 10).rotateZ(Math.PI / 2),
+      hubMat
     );
     const caliper = new THREE.Mesh(
       new THREE.BoxGeometry(width + 0.025, radius * 0.35, radius * 0.35),
       hubMat
     );
 
-    g.add(tire, rim, spoke1, spoke2, caliper);
+    g.add(tire, treadInst, rim, disc, hub, caliper);
     return g;
+  }
+
+  /** Shared realistic car detailing: bumpers, skirts, handles, LED strips, plates, exhausts. */
+  private addCarDetails(
+    bodyGroup: THREE.Group,
+    W: number,
+    L: number,
+    headY: number,
+    headlightMat: THREE.MeshBasicMaterial,
+    brakeMat: THREE.MeshBasicMaterial,
+    paintMat: THREE.MeshPhysicalMaterial,
+    trimMat: THREE.MeshStandardMaterial,
+    chromeMat: THREE.MeshStandardMaterial
+  ): void {
+    // Front & rear bumpers
+    for (const s of [1, -1]) {
+      const bumper = new THREE.Mesh(new THREE.BoxGeometry(W * 0.98, 0.18, 0.22), paintMat);
+      bumper.position.set(0, 0.34, s * L * 0.5);
+      bodyGroup.add(bumper);
+    }
+    // Side skirts
+    for (const sx of [-W * 0.49, W * 0.49]) {
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, L * 0.7), trimMat);
+      skirt.position.set(sx, 0.3, 0);
+      bodyGroup.add(skirt);
+    }
+    // Door handles
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.4, metalness: 0.6 });
+    for (const sx of [-W * 0.505, W * 0.505]) {
+      for (const hz of [-0.55, 0.35]) {
+        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.035, 0.22), handleMat);
+        handle.position.set(sx, 0.78, hz);
+        bodyGroup.add(handle);
+      }
+    }
+    // LED daytime-running-light strips + full-width taillight bar
+    const drlMat = new THREE.MeshBasicMaterial({ color: 0xfff6d8 });
+    for (const sx of [-W * 0.36, W * 0.36]) {
+      const drl = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.035, 0.03), drlMat);
+      drl.position.set(sx, headY + 0.1, L * 0.495);
+      bodyGroup.add(drl);
+    }
+    const tailBar = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, 0.05, 0.03), brakeMat);
+    tailBar.position.set(0, headY + 0.1, -L * 0.495);
+    bodyGroup.add(tailBar);
+    // Front license plate
+    const plateF = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.52, 0.2),
+      new THREE.MeshBasicMaterial({ map: this.plateTex })
+    );
+    plateF.position.set(0, 0.44, L * 0.505);
+    bodyGroup.add(plateF);
+    // Dual chrome exhaust tips
+    for (const sx of [-0.32, 0.32]) {
+      const tip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.18, 10).rotateX(Math.PI / 2),
+        chromeMat
+      );
+      tip.position.set(sx, 0.28, -L * 0.5);
+      bodyGroup.add(tip);
+    }
   }
 
   public build(kind: VehicleKind, colorHex: number): BuiltVehicleRig {
@@ -181,6 +267,29 @@ export class VehicleFactory {
       const navTail = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), brakeMat);
       navTail.position.set(0, 2.9, -5.4);
 
+      // Cockpit window frames + wire-strike cutters + pitot tube
+      for (const sx of [-0.82, 0.82]) {
+        const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.1, 0.07), trimMat);
+        pillar.position.set(sx, 1.6, 1.9);
+        pillar.rotation.x = 0.25;
+        bodyGroup.add(pillar);
+      }
+      const cutterTop = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.5, 0.06), chromeMat);
+      cutterTop.position.set(0, 2.75, 1.1);
+      cutterTop.rotation.x = 0.5;
+      const cutterBot = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, 0.06), chromeMat);
+      cutterBot.position.set(0, 0.75, 2.2);
+      cutterBot.rotation.x = -0.4;
+      const pitot = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 6).rotateX(Math.PI / 2), chromeMat);
+      pitot.position.set(0.5, 1.2, 2.3);
+      bodyGroup.add(cutterTop, cutterBot, pitot);
+      // Red/green nav lights on skids
+      const navRed = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), brakeMat);
+      navRed.position.set(-1.05, 0.35, 1.6);
+      const navGreen = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), headlightMat);
+      navGreen.position.set(1.05, 0.35, 1.6);
+      bodyGroup.add(navRed, navGreen);
+
       // Main 4-blade rotor assembly
       const mr = new THREE.Group();
       mr.position.set(0, 2.82, 0.15);
@@ -267,6 +376,33 @@ export class VehicleFactory {
       hl.position.set(0, 0.82, 0.84);
       const tl = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.09, 0.06), brakeMat);
       tl.position.set(0, 0.94, -0.92);
+
+      // Front forks, swingarm, chain, mirrors & turn signals
+      for (const sx of [-0.09, 0.09]) {
+        const fork = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.75, 6), chromeMat);
+        fork.position.set(sx, 0.55, 0.72);
+        fork.rotation.x = 0.35;
+        bodyGroup.add(fork);
+      }
+      const swingarm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.7), trimMat);
+      swingarm.position.set(0, 0.38, -0.55);
+      const chain = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.75), trimMat);
+      chain.position.set(0.16, 0.36, -0.55);
+      bodyGroup.add(swingarm, chain);
+      for (const sx of [-0.3, 0.3]) {
+        const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.07, 0.03), trimMat);
+        mirror.position.set(sx, 1.08, 0.5);
+        const signal = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.05), brakeMat);
+        signal.position.set(sx * 0.8, 0.72, 0.6);
+        bodyGroup.add(mirror, signal);
+      }
+      const plateB = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.3, 0.12),
+        new THREE.MeshBasicMaterial({ map: this.plateTex })
+      );
+      plateB.position.set(0, 0.72, -0.93);
+      plateB.rotation.y = Math.PI;
+      bodyGroup.add(plateB);
 
       bodyGroup.add(frame, fairing, tail, seat, screen, bars, exhaust, hl, tl);
 
@@ -520,6 +656,8 @@ export class VehicleFactory {
     plate.position.set(0, 0.44, -L * 0.495);
     plate.rotation.y = Math.PI;
     bodyGroup.add(plate);
+
+    this.addCarDetails(bodyGroup, W, L, headY, headlightMat, brakeMat, paintMat, trimMat, chromeMat);
 
     return {
       root,

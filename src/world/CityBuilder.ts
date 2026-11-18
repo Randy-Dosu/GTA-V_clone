@@ -55,6 +55,7 @@ export class CityBuilder {
     this.buildInteractiveShops();
     this.buildStreetFurnitureAndPalms();
     this.buildNYCStreetLife();
+    this.buildRooftopAndAlleyDetails();
     this.buildStuntRamps(ramps);
     this.buildDistantMountains();
   }
@@ -1457,6 +1458,54 @@ export class CityBuilder {
         rack.rotation.y = Math.PI / 2;
         this.scene.add(rack);
       }
+    }
+  }
+
+  /** Dumpsters in alleys, rooftop AC units and TV antennas for lived-in realism. */
+  private buildRooftopAndAlleyDetails(): void {
+    const dumpMat = new THREE.MeshStandardMaterial({ color: 0x2f5d3a, roughness: 0.7, metalness: 0.3 });
+    const dumpLidMat = new THREE.MeshStandardMaterial({ color: 0x264a2e, roughness: 0.65, metalness: 0.3 });
+    const dumpSpots: Array<[number, number, number]> = [
+      [-20, -70, 0.2], [60, -50, -0.15], [-60, -140, 0.1], [80, -150, 0.25],
+      [-150, -50, -0.2], [-170, 60, 0.15], [-40, 160, 0.1], [50, 150, -0.1],
+      [160, -150, 0.2], [180, -40, -0.15], [160, 60, 0.1], [150, 170, -0.2],
+    ];
+    for (const [dx, dz, rotY] of dumpSpots) {
+      const g = new THREE.Group();
+      g.position.set(dx, SIDEWALK_Y, dz);
+      g.rotation.y = rotY;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.25, 1.15), dumpMat);
+      body.position.y = 0.63;
+      body.castShadow = true;
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.1, 1.2), dumpLidMat);
+      lid.position.y = 1.3;
+      g.add(body, lid);
+      this.scene.add(g);
+    }
+
+    // Rooftop AC units + antennas on mid-rise roofs
+    const acMat = new THREE.MeshStandardMaterial({ color: 0xb8bec6, roughness: 0.5, metalness: 0.6 });
+    const antMat = new THREE.MeshStandardMaterial({ color: 0x3a3f45, metalness: 0.7, roughness: 0.4 });
+    const roofSpots: Array<[number, number, number]> = [
+      [-142, -74, 22], [-154, -34, 26], [-184, 38, 26], [74, 165, 22],
+      [-35, 174, 30], [38, 144, 14], [52, -32, 34], [-72, 152, 44],
+      [152, -172, 36], [178, 44, 24], [-144, 168, 34], [36, 184, 18],
+    ];
+    for (const [rx, rz, roofY] of roofSpots) {
+      const baseY = SIDEWALK_Y + roofY;
+      const ac = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, 1.4), acMat);
+      ac.position.set(rx + 4, baseY + 0.45, rz + 3);
+      ac.castShadow = true;
+      const ac2 = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.1), acMat);
+      ac2.position.set(rx - 5, baseY + 0.4, rz - 4);
+      ac2.castShadow = true;
+      const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 5.5, 6), antMat);
+      ant.position.set(rx, baseY + 2.75, rz);
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.05, 0.05), antMat);
+      cross.position.set(rx, baseY + 4.6, rz);
+      const cross2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.1), antMat);
+      cross2.position.set(rx, baseY + 4.2, rz);
+      this.scene.add(ac, ac2, ant, cross, cross2);
     }
   }
 
