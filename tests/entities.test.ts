@@ -268,3 +268,81 @@ describe('Player, Vehicles, Helicopter & Camera Physics', () => {
     expect(completed).toBe(true);
   });
 });
+
+describe('Physics: swimming, water drag & solid-body collisions', () => {
+  it('floats and swims at the surf line instead of sinking to the seabed', () => {
+    const scene = new THREE.Scene();
+    const player = new Player(scene);
+    // Deep Pacific surf west of Vespucci Beach (terrain ≈ -0.6)
+    player.pos.set(-325, 0.2, 0);
+    player.vel.set(0, 0, 0);
+    player.grounded = false;
+
+    for (let i = 0; i < 90; i++) {
+      player.updateOnFoot(1 / 60, 0, 0, false, false, false, 0, 0, [], [], []);
+    }
+    expect(player.swimming).toBe(true);
+    // Buoyancy holds the body at the surface, well above the seabed
+    expect(player.pos.y).toBeGreaterThan(-0.5);
+    expect(player.pos.y).toBeLessThan(0.35);
+
+    // Swimming forward moves the player through the water
+    const startX = player.pos.x;
+    for (let i = 0; i < 60; i++) {
+      player.updateOnFoot(1 / 60, 1, 0, false, false, false, Math.PI * 0.5, 0, [], [], []);
+    }
+    expect(Math.abs(player.pos.x - startX)).toBeGreaterThan(0.5);
+  });
+
+  it('applies water drag so cars slow down and sink in the surf', () => {
+    const scene = new THREE.Scene();
+    const factory = makeVehicleFactory();
+    const effects = new EffectsManager(scene);
+    const car = new Vehicle(factory, scene, 'sedan', -325, 0, 0, 0);
+    car.isPlayerDriven = true;
+    car.vel.set(0, 0, 18);
+    car.speed = 18;
+
+    for (let i = 0; i < 60; i++) {
+      car.update(1 / 60, { throttle: 0, steer: 0, handbrake: false, boost: false, ascend: 0 }, [], [], effects, 0);
+    }
+    // Water resistance bleeds speed far faster than dry rolling resistance
+    expect(car.speed).toBeLessThan(8);
+    expect(car.pos.y).toBeLessThan(0.2);
+  });
+
+  it('blocks the on-foot player from walking through vehicles', () => {
+    const scene = new THREE.Scene();
+    const factory = makeVehicleFactory();
+    const player = new Player(scene);
+    const car = new Vehicle(factory, scene, 'sedan', 0, 0, 0, 0);
+    car.isPlayerDriven = false;
+
+    // Walk straight into the parked car's side
+    player.pos.set(-2.5, 0.14, 0);
+    player.vel.set(0, 0, 0);
+    player.grounded = true;
+    for (let i = 0; i < 120; i++) {
+      player.updateOnFoot(1 / 60, 0, 1, false, false, false, 0, 0, [], [], [car]);
+    }
+    // The car body keeps the player out — never reaches the center
+    expect(Math.hypot(player.pos.x - car.pos.x, player.pos.z - car.pos.z)).toBeGreaterThan(0.9);
+  });
+
+  it('resolves traffic-car building collisions instead of clipping through', () => {
+    const scene = new THREE.Scene();
+    const factory = makeVehicleFactory();
+    const effects = new EffectsManager(scene);
+    const wall: BuildingCollider[] = [{ minX: -10, maxX: 10, minZ: 5, maxZ: 12, minY: 0, maxY: 20 }];
+    const car = new Vehicle(factory, scene, 'sedan', 0, 0, 0, 0);
+    car.isTraffic = true;
+    car.vel.set(0, 0, 14);
+    car.speed = 14;
+
+    for (let i = 0; i < 60; i++) {
+      car.update(1 / 60, { throttle: 1, steer: 0, handbrake: false, boost: false, ascend: 0 }, wall, [], effects, 0);
+    }
+    // The car is pushed out of the wall volume instead of passing through it
+    expect(car.pos.z).toBeLessThan(5);
+  });
+});

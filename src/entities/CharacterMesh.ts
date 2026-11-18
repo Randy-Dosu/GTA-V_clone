@@ -637,7 +637,8 @@ export class CharacterRig {
     isGrounded: boolean,
     isAiming: boolean,
     aimPitch = 0,
-    knockedDown = false
+    knockedDown = false,
+    swimming = false
   ): void {
     if (knockedDown) {
       this.hips.position.y = 0.18;
@@ -655,6 +656,28 @@ export class CharacterRig {
 
     this.hips.rotation.x = 0;
     const speedRatio = Math.min(1.4, moveSpeed / 5.5);
+
+    if (swimming) {
+      // Front-crawl swim: body horizontal, arms paddling, legs flutter-kicking
+      this.walkPhase += dt * (moveSpeed > 0.3 ? 7.5 : 3.0);
+      const paddle = Math.sin(this.walkPhase);
+      this.hips.position.y = 0.55;
+      this.hips.rotation.x = 0.85;
+      this.torso.rotation.x = 0.35;
+      this.torso.rotation.y = 0;
+      this.head.rotation.x = -0.55;
+      this.leftArm.rotation.x = -1.9 + paddle * 0.7;
+      this.rightArm.rotation.x = -1.9 - paddle * 0.7;
+      this.leftElbow.rotation.x = -0.5 - Math.max(0, paddle) * 0.5;
+      this.rightElbow.rotation.x = -0.5 - Math.max(0, -paddle) * 0.5;
+      this.leftLeg.rotation.x = 0.25 + Math.sin(this.walkPhase * 2) * 0.3;
+      this.rightLeg.rotation.x = 0.25 - Math.sin(this.walkPhase * 2) * 0.3;
+      this.leftKnee.rotation.x = 0.35;
+      this.rightKnee.rotation.x = 0.35;
+      this.leftArm.rotation.z = 0.35;
+      this.rightArm.rotation.z = -0.35;
+      return;
+    }
 
     if (moveSpeed > 0.25 && isGrounded) {
       const freq = isSprinting ? 12.5 : 8.5;

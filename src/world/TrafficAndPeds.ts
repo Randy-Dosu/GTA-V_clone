@@ -444,16 +444,18 @@ export class TrafficAndPeds {
       }
     }
 
-    // 3. Vehicle-vs-Vehicle Collisions (for player car and active cars)
+    // 3. Vehicle-vs-Vehicle Collisions (player, police & traffic — all solid)
     const len = this.vehicles.length;
     for (let i = 0; i < len; i++) {
       const a = this.vehicles[i];
-      if (!a.isPlayerDriven && !a.isPoliceUnit) continue;
       if (a.kind === 'helicopter' && a.airborne) continue;
+      const aActive = a.isPlayerDriven || a.isPoliceUnit || a.isTraffic;
 
       for (let j = 0; j < len; j++) {
         if (i === j) continue;
         const b = this.vehicles[j];
+        const bActive = b.isPlayerDriven || b.isPoliceUnit || b.isTraffic;
+        if (!aActive && !bActive) continue; // parked cars stay put
         if (Math.abs(a.pos.y - b.pos.y) > 2.2) continue;
 
         const dx = b.pos.x - a.pos.x;
@@ -490,9 +492,9 @@ export class TrafficAndPeds {
               effects.spawnImpact(mid, false);
               if (a.isPlayerDriven || b.isPlayerDriven) {
                 callbacks.onPlayerCollision(Math.min(1, impulse / 26));
+                a.applyDamage(impulse * 1.6, effects, callbacks.onVehicleExplode);
+                b.applyDamage(impulse * 2.2, effects, callbacks.onVehicleExplode);
               }
-              a.applyDamage(impulse * 1.6, effects, callbacks.onVehicleExplode);
-              b.applyDamage(impulse * 2.2, effects, callbacks.onVehicleExplode);
             }
           }
           a.syncTransform();
@@ -582,6 +584,18 @@ export class TrafficAndPeds {
           });
           this.alertNearbyPeds(p.pos, 45);
           continue;
+        }
+      }
+
+      // Solid body collision: pedestrians step aside from the on-foot player
+      if (player && !player.currentVehicle && !player.dead && Math.abs(player.pos.y - p.pos.y) < 1.8) {
+        const pdx = p.pos.x - player.pos.x;
+        const pdz = p.pos.z - player.pos.z;
+        const pd = Math.hypot(pdx, pdz);
+        if (pd > 0.0001 && pd < 0.72) {
+          const push = (0.72 - pd) * 0.6;
+          p.pos.x += (pdx / pd) * push;
+          p.pos.z += (pdz / pd) * push;
         }
       }
 

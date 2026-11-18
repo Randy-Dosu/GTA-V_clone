@@ -1097,7 +1097,8 @@ class GTAVGame {
         this.cameraCtrl.yaw,
         0,
         this.city.colliders,
-        this.ramps
+        this.ramps,
+        this.traffic.vehicles
       );
     } else {
       const kbF = (this.input.isDown('KeyW') ? 1 : 0) - (this.input.isDown('KeyS') ? 1 : 0);
@@ -1141,7 +1142,8 @@ class GTAVGame {
         this.cameraCtrl.yaw,
         this.cameraCtrl.pitch,
         this.city.colliders,
-        this.ramps
+        this.ramps,
+        this.traffic.vehicles
       );
     }
 

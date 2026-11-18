@@ -28,6 +28,7 @@ export class Player {
   public grounded = true;
   public isSprinting = false;
   public isAiming = false;
+  public swimming = false;
 
   // Saved spots for all 3 GTA V protagonists so switching jumps across Los Santos!
   public savedSpots: Record<CharacterId, { pos: THREE.Vector3; heading: number }> = {
@@ -302,7 +303,8 @@ export class Player {
     cameraYaw: number,
     cameraPitch: number,
     colliders: BuildingCollider[],
-    ramps: StuntRamp[]
+    ramps: StuntRamp[],
+    vehicles: Vehicle[] = []
   ): void {
     if (this.dead) return;
 
@@ -325,7 +327,11 @@ export class Player {
 
     this.isAiming = aiming;
     const inputLen = Math.hypot(moveForward, moveRight);
-    this.isSprinting = sprint && inputLen > 0.1 && !aiming;
+
+    // Swimming: deep water (Pacific surf) floats the body at the surface
+    const terrainHere = sampleBaseTerrainHeight(this.pos.x, this.pos.z);
+    this.swimming = terrainHere < -0.42 && this.pos.y < 0.35;
+    this.isSprinting = sprint && inputLen > 0.1 && !aiming && !this.swimming;
 
     // Camera-relative forward & right vectors in XZ plane
     // Camera looks along (-sin(yaw), *, -cos(yaw))
@@ -342,16 +348,21 @@ export class Player {
       wishZ /= wLen;
     }
 
-    const targetMaxSpeed = aiming ? 3.8 : this.isSprinting ? 8.6 : 5.2;
+    const targetMaxSpeed = this.swimming ? 2.4 : aiming ? 3.8 : this.isSprinting ? 8.6 : 5.2;
     const targetVx = wishX * targetMaxSpeed;
     const targetVz = wishZ * targetMaxSpeed;
 
-    const accel = this.grounded ? 14 : 4;
+    const accel = this.swimming ? 3.2 : this.grounded ? 14 : 4;
     this.vel.x = THREE.MathUtils.lerp(this.vel.x, targetVx, Math.min(1, dt * accel));
     this.vel.z = THREE.MathUtils.lerp(this.vel.z, targetVz, Math.min(1, dt * accel));
 
-    if (jump && this.grounded) {
+    if (jump && this.grounded && !this.swimming) {
       this.vel.y = 7.6;
+      this.grounded = false;
+    }
+    if (jump && this.swimming) {
+      // Small hop to climb out of the water onto shore
+      this.vel.y = 3.2;
       this.grounded = false;
     }
 
@@ -367,6 +378,10 @@ export class Player {
 
     // Floor: terrain + stunt ramps + skyscraper rooftops (e.g. after landing chopper on Maze Bank!)
     let floorY = Math.max(-0.65, sampleBaseTerrainHeight(this.pos.x, this.pos.z));
+    // Water surface buoyancy: float at the surf line instead of sinking to the seabed
+    if (this.swimming) {
+      floorY = Math.max(floorY, -0.18);
+    }
     const ramp = sampleRampHeight(this.pos.x, this.pos.z, ramps);
     if (ramp.ramp && prevY >= ramp.height - 0.8) {
       floorY = Math.max(floorY, ramp.height);
@@ -399,9 +414,29 @@ export class Player {
       }
     }
 
+    // Solid vehicle collision: the player cannot walk through cars (two-circle OBB approx)
+    for (const v of vehicles) {
+      if (v.destroyed || v === this.currentVehicle) continue;
+      if (Math.abs(v.pos.y - this.pos.y) > 2.2) continue;
+      const fwdX = Math.sin(v.heading);
+      const fwdZ = Math.cos(v.heading);
+      const r = v.spec.halfWidth + 0.28;
+      for (const s of [-1, 1]) {
+        const cx = v.pos.x + fwdX * s * v.spec.halfLength * 0.55;
+        const cz = v.pos.z + fwdZ * s * v.spec.halfLength * 0.55;
+        const dx = this.pos.x - cx;
+        const dz = this.pos.z - cz;
+        const d = Math.hypot(dx, dz);
+        if (d > 0.0001 && d < r) {
+          this.pos.x += (dx / d) * (r - d);
+          this.pos.z += (dz / d) * (r - d);
+        }
+      }
+    }
+
     if (this.pos.y <= floorY) {
       // High fall damage (e.g. jumping off Maze Bank!)
-      if (this.vel.y < -22) {
+      if (this.vel.y < -22 && !this.swimming) {
         this.takeDamage((Math.abs(this.vel.y) - 20) * 4.5);
       }
       this.pos.y = floorY;
@@ -431,7 +466,8 @@ export class Player {
       this.grounded,
       aiming,
       -cameraPitch,
-      this.dead
+      this.dead,
+      this.swimming
     );
   }
 }

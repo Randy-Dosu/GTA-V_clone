@@ -371,9 +371,23 @@ export class Vehicle {
       this.airTime += dt;
     }
 
-    // Building AABB collisions (only checked for player, cops & active nearby cars)
-    if (!this.isTraffic) {
-      this.resolveBuildingCollisions(colliders, effects, callbacks);
+    // Building AABB collisions for every vehicle (traffic included)
+    this.resolveBuildingCollisions(colliders, effects, callbacks);
+
+    // Water physics: deep surf drags the car down — engine sputters, buoyancy slows the sink
+    const terrainNow = sampleBaseTerrainHeight(this.pos.x, this.pos.z);
+    if (terrainNow < -0.42 && !this.airborne) {
+      const drag = Math.exp(-2.6 * dt);
+      this.vel.x *= drag;
+      this.vel.z *= drag;
+      this.speed *= drag;
+      if (this.pos.y < -0.25 && this.vel.y < 0) {
+        this.vel.y *= 0.55; // buoyancy cushions the descent
+      }
+      if (Math.abs(this.vel.x) + Math.abs(this.vel.z) > 2) {
+        const splashPos = this.pos.clone().add(new THREE.Vector3(0, 0.15, 0));
+        effects.spawnTireSmoke(splashPos);
+      }
     }
 
     // Dynamic chassis suspension pitch & cornering roll!
