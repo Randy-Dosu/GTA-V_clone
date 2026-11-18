@@ -256,3 +256,16 @@ GTA-V_clone/
 * **No Sound on Startup:** Browsers pause Web Audio until the first user click, key press, or gamepad button press. Interact once with the Title Screen or viewport, and check **Master Volume** and **Soundtrack Volume** in **Settings**.
 * **Gamepad Not Responding:** Press any face button (`A` / `✕`) while the browser window is focused—browsers hide connected gamepads for privacy until a button is pressed. Check **Pause → CONTROLS → Gamepad** to confirm live detection.
 * **Mouse Cursor Won't Lock:** Click directly on the 3D canvas while in active gameplay (close any open Pause Menu, shop drawer, or iFruit phone first).
+* **Windows: `Cannot find module @rollup/rollup-win32-x64-msvc` (or esbuild install scripts blocked):** This is a known npm optional-dependency bug (`npm/cli#4828`) — the committed `package-lock.json` was generated on Linux, so Windows native binaries for Rollup/esbuild are skipped on first install. Fix in PowerShell:
+  ```powershell
+  Remove-Item -Recurse -Force node_modules, package-lock.json
+  npm install
+  npm run dev
+  ```
+  Or, without deleting the lockfile:
+  ```powershell
+  npm install @rollup/rollup-win32-x64-msvc --no-save
+  npm rebuild esbuild
+  npm run dev
+  ```
+  The repo now declares `"trustedDependencies": ["esbuild"]` so npm allows the esbuild postinstall script. If you hit repeated native-binary issues on Windows, use the Docker path (`docker compose up --build`) instead — it runs entirely in Linux containers and avoids this class of bug.
