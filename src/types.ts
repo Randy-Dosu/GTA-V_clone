@@ -42,7 +42,10 @@ export type VehicleKind =
   | 'sedan'
   | 'police'
   | 'bike'
-  | 'helicopter';
+  | 'helicopter'
+  | 'luxury'
+  | 'vintage'
+  | 'cab';
 
 export interface VehicleSpec {
   kind: VehicleKind;
@@ -394,6 +397,66 @@ export const VEHICLE_SPECS: Record<VehicleKind, VehicleSpec> = {
     height: 2.8,
     wheelRadius: 0.2,
     colors: [0x1b2430, 0xd8dee6],
+  },
+  luxury: {
+    kind: 'luxury',
+    name: 'Schafter',
+    brand: 'Benefactor',
+    category: 'Luxury',
+    maxSpeed: 44,
+    reverseSpeed: 14,
+    acceleration: 19,
+    braking: 33,
+    turnRate: 2.3,
+    grip: 8.4,
+    driftGrip: 2.1,
+    mass: 1750,
+    maxHealth: 1150,
+    halfWidth: 1.03,
+    halfLength: 2.36,
+    height: 1.45,
+    wheelRadius: 0.37,
+    colors: [0x1a1d22, 0xd8dee6, 0x5c1a1b, 0x1e3a5f, 0x2f4f2f, 0xc9b897],
+  },
+  vintage: {
+    kind: 'vintage',
+    name: 'Tornado',
+    brand: 'Declasse',
+    category: 'Classic',
+    maxSpeed: 36,
+    reverseSpeed: 12,
+    acceleration: 13.5,
+    braking: 26,
+    turnRate: 2.0,
+    grip: 6.8,
+    driftGrip: 1.7,
+    mass: 1500,
+    maxHealth: 950,
+    halfWidth: 1.0,
+    halfLength: 2.3,
+    height: 1.5,
+    wheelRadius: 0.36,
+    colors: [0x7a1f1f, 0x1f4d2e, 0x2c3e50, 0xc9a227, 0x5a4632, 0xe8e0d0],
+  },
+  cab: {
+    kind: 'cab',
+    name: 'Taxi',
+    brand: 'Vapid',
+    category: 'Service',
+    maxSpeed: 40,
+    reverseSpeed: 13,
+    acceleration: 17,
+    braking: 32,
+    turnRate: 2.3,
+    grip: 8.2,
+    driftGrip: 2.0,
+    mass: 1700,
+    maxHealth: 1100,
+    halfWidth: 1.03,
+    halfLength: 2.35,
+    height: 1.48,
+    wheelRadius: 0.36,
+    colors: [0xf5b800],
   },
 };
 

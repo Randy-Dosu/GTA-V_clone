@@ -115,6 +115,15 @@ export class TrafficAndPeds {
     this.spawnParkedVehicle('supercar', 136, 0.14, 94, Math.PI * 0.5, 0xf5b800);
     this.spawnParkedVehicle('supercar', -234, 0.14, 22, 0, 0x14b866);
 
+    // Luxury, vintage & taxi additions
+    // Benefactor Schafter luxury sedan outside Eclipse Towers
+    this.spawnParkedVehicle('luxury', -135, 0.14, -145, Math.PI * 0.5, 0x1a1d22);
+    // Declasse Tornado classic in Strawberry
+    this.spawnParkedVehicle('vintage', 30, 0.14, 160, 0, 0x7a1f1f);
+    // Vapid Taxi rank downtown + one near Legion Square
+    this.spawnParkedVehicle('cab', -5, 0.0, 20, 0, 0xf5b800);
+    this.spawnParkedVehicle('cab', 115, 0.0, 5, Math.PI * 0.5, 0xf5b800);
+
     // FLYABLE BUCKINGHAM MAVERICK HELICOPTERS!
     // 1. Vespucci Beach Helipad
     this.spawnParkedVehicle('helicopter', -272, 0.16, 185, Math.PI * 0.25, 0x1b2838);
@@ -136,7 +145,10 @@ export class TrafficAndPeds {
   }
 
   private initTraffic(): void {
-    const kinds: VehicleKind[] = ['sedan', 'sedan', 'suv', 'muscle', 'supercar', 'sedan', 'bike'];
+    const kinds: VehicleKind[] = [
+      'sedan', 'sedan', 'suv', 'muscle', 'supercar', 'sedan', 'bike',
+      'luxury', 'vintage', 'cab', 'cab', 'luxury', 'vintage', 'sedan',
+    ];
     for (let i = 0; i < this.maxTraffic; i++) {
       const axis: 'ns' | 'ew' = i % 2 === 0 ? 'ns' : 'ew';
       const roadCoord = ROAD_COORDS[i % ROAD_COORDS.length];
@@ -408,7 +420,7 @@ export class TrafficAndPeds {
       const along = -180 + Math.random() * 360;
       const pt = this.computeLanePos(axis, roadCoord, dir, along);
       if (Math.hypot(pt.x - focusPos.x, pt.z - focusPos.z) > 75) {
-        const pool: VehicleKind[] = ['sedan', 'suv', 'muscle', 'supercar'];
+        const pool: VehicleKind[] = ['sedan', 'suv', 'muscle', 'supercar', 'luxury', 'vintage', 'cab'];
         const kind = pool[Math.floor(Math.random() * pool.length)];
         const nv = new Vehicle(
           this.vehicleFactory,

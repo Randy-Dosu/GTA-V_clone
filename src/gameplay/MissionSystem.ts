@@ -70,6 +70,30 @@ export class MissionSystem {
       reward: 18000,
       completed: false,
     },
+    {
+      id: 'collector_run',
+      letter: 'C',
+      title: "The Collector's Request",
+      giver: 'Simeon Yetarian',
+      color: '#e879f9',
+      x: 30,
+      y: SIDEWALK_Y,
+      z: 172,
+      reward: 16000,
+      completed: false,
+    },
+    {
+      id: 'cab_fares',
+      letter: 'T',
+      title: 'Downtown Taxi Fares',
+      giver: 'Downtown Cab Co.',
+      color: '#f5b800',
+      x: 18,
+      y: SIDEWALK_Y,
+      z: 26,
+      reward: 9000,
+      completed: false,
+    },
   ];
 
   private startCoronas = new Map<string, THREE.Group>();
@@ -103,7 +127,7 @@ export class MissionSystem {
     this.police = police;
     this.audio = audio;
 
-    // Build start corona markers for all 4 missions
+    // Build start corona markers for all 6 missions
     for (const m of this.missions) {
       const g = new THREE.Group();
       const col = new THREE.Color(m.color);
@@ -232,6 +256,34 @@ export class MissionSystem {
           'Board the <span class="hl-blue">Buckingham Maverick</span> on the <span class="hl-yellow">Vespucci Helipad</span>.',
         targetPos: new THREE.Vector3(-272, 0.16, 185),
         targetColor: '#38bdf8',
+        timerSeconds: null,
+      };
+    } else if (m.id === 'collector_run') {
+      // Spawn a pristine vintage Declasse Tornado in Strawberry for the collector!
+      this.missionVehicle = this.traffic.spawnParkedVehicle(
+        'vintage',
+        44,
+        SIDEWALK_Y,
+        158,
+        Math.PI * 0.5,
+        0x7a1f1f
+      );
+      this.missionVehicle.isMissionTarget = true;
+      this.objective = {
+        missionTitle: m.title,
+        subtitleHtml:
+          'Steal the pristine <span class="hl-blue">Declasse Tornado</span> in <span class="hl-yellow">Strawberry</span>.',
+        targetPos: this.missionVehicle.pos.clone(),
+        targetColor: '#e879f9',
+        timerSeconds: null,
+      };
+    } else if (m.id === 'cab_fares') {
+      this.objective = {
+        missionTitle: m.title,
+        subtitleHtml:
+          'Get behind the wheel of a <span class="hl-yellow">Taxi</span> — grab one at the <span class="hl-blue">downtown rank</span>.',
+        targetPos: new THREE.Vector3(-5, SIDEWALK_Y, 20),
+        targetColor: '#f5b800',
         timerSeconds: null,
       };
     }
@@ -416,6 +468,126 @@ export class MissionSystem {
       } else if (this.stage === 2) {
         const pier = this.objective.targetPos!;
         if (Math.hypot(player.pos.x - pier.x, player.pos.z - pier.z) < 18) {
+          this.completeMission(player, (t, r) => {
+            callbacks.onCashDelta(r);
+            callbacks.onPassed(t, r);
+          });
+          return;
+        }
+      }
+    } else if (id === 'collector_run') {
+      if (this.missionVehicle?.destroyed) {
+        this.abortMission('MISSION FAILED — The collector\'s car was wrecked.', callbacks.onFailed);
+        return;
+      }
+      const client = new THREE.Vector3(-128, SIDEWALK_Y, -138);
+      if (this.stage === 0) {
+        if (this.missionVehicle) {
+          this.objective.targetPos = this.missionVehicle.pos.clone();
+          if (player.currentVehicle === this.missionVehicle) {
+            this.stage = 1;
+            this.police.reportCrime(30, 1);
+            this.objective.targetPos = client;
+            this.objective.targetColor = '#e879f9';
+            this.objective.subtitleHtml =
+              'Drive the <span class="hl-blue">Tornado</span> to the <span class="hl-yellow">collector at Eclipse Towers</span>.';
+          }
+        }
+      } else if (this.stage === 1) {
+        if (this.missionVehicle && player.currentVehicle === this.missionVehicle) {
+          this.objective.targetPos = client;
+          this.objective.subtitleHtml =
+            'Drive the <span class="hl-blue">Tornado</span> to the <span class="hl-yellow">collector at Eclipse Towers</span>.';
+          if (player.pos.distanceTo(client) < 9) {
+            this.stage = 2;
+            this.audio.playCashPickup();
+            this.missionVehicle.isMissionTarget = false;
+            this.missionVehicle = this.traffic.spawnParkedVehicle(
+              'luxury',
+              -152,
+              SIDEWALK_Y,
+              -132,
+              Math.PI * 0.5,
+              0x1a1d22
+            );
+            this.missionVehicle.isMissionTarget = true;
+            this.objective.subtitleHtml =
+              'The client is thrilled! Now collect the <span class="hl-blue">Benefactor Schafter</span> for delivery.';
+          }
+        } else if (this.missionVehicle) {
+          this.objective.subtitleHtml = 'Get back in the <span class="hl-blue">Tornado</span>.';
+          this.objective.targetPos = this.missionVehicle.pos.clone();
+        }
+      } else if (this.stage === 2) {
+        if (this.missionVehicle) {
+          this.objective.targetPos = this.missionVehicle.pos.clone();
+          if (player.currentVehicle === this.missionVehicle) {
+            this.stage = 3;
+            this.police.reportCrime(30, 1);
+            this.objective.targetPos = new THREE.Vector3(144, SIDEWALK_Y, 94);
+            this.objective.targetColor = '#facc15';
+            this.objective.subtitleHtml =
+              'Deliver the <span class="hl-blue">Schafter</span> to <span class="hl-yellow">Simeon\'s Dealership</span>.';
+          }
+        }
+      } else if (this.stage === 3) {
+        const drop = new THREE.Vector3(144, SIDEWALK_Y, 94);
+        if (this.missionVehicle && player.currentVehicle === this.missionVehicle) {
+          this.objective.targetPos = drop;
+          this.objective.subtitleHtml =
+            'Deliver the <span class="hl-blue">Schafter</span> to <span class="hl-yellow">Simeon\'s Dealership</span>.';
+          if (player.pos.distanceTo(drop) < 8.5) {
+            this.completeMission(player, (t, r) => {
+              callbacks.onCashDelta(r);
+              callbacks.onPassed(t, r);
+            });
+            return;
+          }
+        } else if (this.missionVehicle) {
+          this.objective.subtitleHtml = 'Get back in the <span class="hl-blue">Schafter</span>.';
+          this.objective.targetPos = this.missionVehicle.pos.clone();
+        }
+      }
+    } else if (id === 'cab_fares') {
+      if (this.stage === 0) {
+        if (player.currentVehicle?.kind === 'cab') {
+          this.stage = 1;
+          this.raceTimer = 150;
+          this.objective.timerSeconds = this.raceTimer;
+          this.objective.targetPos = new THREE.Vector3(108, SIDEWALK_Y, 12);
+          this.objective.targetColor = '#f5b800';
+          this.objective.subtitleHtml =
+            'Pick up the <span class="hl-blue">fare</span> at <span class="hl-yellow">Legion Square</span>.';
+        } else if (player.currentVehicle) {
+          this.objective.subtitleHtml =
+            'That\'s not a cab! Get behind the wheel of a <span class="hl-yellow">Taxi</span>.';
+        }
+      } else if (this.stage === 1) {
+        this.raceTimer -= dt;
+        this.objective.timerSeconds = Math.max(0, this.raceTimer);
+        if (this.raceTimer <= 0) {
+          this.abortMission('MISSION FAILED — The fare bailed out.', callbacks.onFailed);
+          return;
+        }
+        const pickup = this.objective.targetPos!;
+        if (player.pos.distanceTo(pickup) < 8) {
+          this.stage = 2;
+          this.audio.playCashPickup();
+          this.raceTimer = 120;
+          this.objective.timerSeconds = this.raceTimer;
+          this.objective.targetPos = new THREE.Vector3(-275, SIDEWALK_Y, 140);
+          this.objective.subtitleHtml =
+            'Drive the fare to the <span class="hl-yellow">Vespucci Beachfront</span>.';
+        }
+      } else if (this.stage === 2) {
+        this.raceTimer -= dt;
+        this.objective.timerSeconds = Math.max(0, this.raceTimer);
+        if (this.raceTimer <= 0) {
+          this.abortMission('MISSION FAILED — The fare bailed out.', callbacks.onFailed);
+          return;
+        }
+        const drop = this.objective.targetPos!;
+        if (player.pos.distanceTo(drop) < 10) {
           this.completeMission(player, (t, r) => {
             callbacks.onCashDelta(r);
             callbacks.onPassed(t, r);

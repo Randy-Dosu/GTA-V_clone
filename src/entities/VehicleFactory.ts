@@ -23,6 +23,24 @@ export interface BuiltVehicleRig {
 export class VehicleFactory {
   private policeDoorTex: THREE.CanvasTexture;
   private plateTex: THREE.CanvasTexture;
+  private taxiSignTex: THREE.CanvasTexture | null = null;
+
+  private makeTaxiSignTex(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 112;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#f5b800';
+    ctx.fillRect(0, 0, 256, 112);
+    ctx.fillStyle = '#111111';
+    ctx.font = '900 64px "Arial Black", Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('TAXI', 128, 58);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
 
   constructor(textures: TextureFactory) {
     this.policeDoorTex = textures.createPoliceDoorTexture();
@@ -549,6 +567,107 @@ export class VehicleFactory {
       spare.position.set(0.28, 1.08, -L * 0.5);
 
       bodyGroup.add(chassis, cabinGlass, roof, grille, spare);
+    } else if (kind === 'luxury') {
+      // Benefactor Schafter — elegant chrome-trimmed luxury sedan!
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.52, L * 0.98), paintMat);
+      chassis.position.set(0, 0.56, 0);
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.84, 0.46, L * 0.5), glassMat);
+      cabin.position.set(0, 1.04, -0.1);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.09, L * 0.4), paintMat);
+      roof.position.set(0, 1.3, -0.12);
+      roof.castShadow = true;
+
+      // Chrome grille, window trim & hood ornament
+      const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.6, 0.24, 0.08), chromeMat);
+      grille.position.set(0, 0.56, L * 0.49);
+      for (const sx of [-W * 0.43, W * 0.43]) {
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, L * 0.48), chromeMat);
+        trim.position.set(sx, 1.06, -0.1);
+        bodyGroup.add(trim);
+      }
+      const ornament = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.12, 6), chromeMat);
+      ornament.position.set(0, 0.82, L * 0.44);
+      bodyGroup.add(chassis, cabin, roof, grille, ornament);
+    } else if (kind === 'vintage') {
+      // Declasse Tornado — rounded 1960s classic with chrome bumpers & tail fins!
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.56, L * 0.98), paintMat);
+      chassis.position.set(0, 0.58, 0);
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+
+      // Rounded greenhouse (scaled sphere reads as a classic hardtop)
+      const cabin = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 12), glassMat);
+      cabin.scale.set(1.28, 0.62, 1.85);
+      cabin.position.set(0, 1.08, -0.15);
+      const roof = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), paintMat);
+      roof.scale.set(1.26, 0.5, 1.8);
+      roof.position.set(0, 1.2, -0.15);
+      roof.castShadow = true;
+
+      // Big chrome bumpers + tail fins
+      for (const s of [1, -1]) {
+        const bumper = new THREE.Mesh(new THREE.BoxGeometry(W * 1.02, 0.16, 0.14), chromeMat);
+        bumper.position.set(0, 0.36, s * L * 0.5);
+        bodyGroup.add(bumper);
+      }
+      for (const sx of [-W * 0.46, W * 0.46]) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, 0.7), paintMat);
+        fin.position.set(sx, 0.82, -L * 0.38);
+        fin.rotation.x = 0.2;
+        bodyGroup.add(fin);
+      }
+      // White-wall tire rings
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.7 });
+      const trackX = spec.halfWidth - 0.06;
+      const axleZ = spec.halfLength * 0.64;
+      for (const sx of [-trackX, trackX]) {
+        for (const sz of [-axleZ, axleZ]) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(spec.wheelRadius * 0.72, 0.035, 6, 20), wallMat);
+          ring.position.set(sx + Math.sign(sx) * 0.14, spec.wheelRadius, sz);
+          ring.rotation.y = Math.PI / 2;
+          bodyGroup.add(ring);
+        }
+      }
+      bodyGroup.add(chassis, cabin, roof);
+    } else if (kind === 'cab') {
+      // Vapid Taxi — yellow service sedan with roof sign & checker stripe!
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.54, L * 0.98), paintMat);
+      chassis.position.set(0, 0.58, 0);
+      chassis.castShadow = true;
+      chassis.receiveShadow = true;
+
+      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.84, 0.48, L * 0.48), glassMat);
+      cabin.position.set(0, 1.06, -0.12);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.09, L * 0.38), paintMat);
+      roof.position.set(0, 1.32, -0.14);
+      roof.castShadow = true;
+
+      // Checker stripe along both flanks
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.5 });
+      for (const sx of [-W * 0.505, W * 0.505]) {
+        for (let i = 0; i < 8; i++) {
+          const sq = new THREE.Mesh(
+            new THREE.BoxGeometry(0.02, 0.09, 0.28),
+            i % 2 === 0 ? darkMat : new THREE.MeshStandardMaterial({ color: 0xf4f6f9, roughness: 0.5 })
+          );
+          sq.position.set(sx, 0.52, -L * 0.4 + i * 0.28);
+          bodyGroup.add(sq);
+        }
+      }
+
+      // Illuminated TAXI roof sign
+      const signTex = this.taxiSignTex ?? (this.taxiSignTex = this.makeTaxiSignTex());
+      const sign = new THREE.Mesh(
+        new THREE.BoxGeometry(0.62, 0.28, 0.3),
+        new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xfff2b0, emissiveMap: signTex, emissiveIntensity: 0.7 })
+      );
+      sign.position.set(0, 1.52, -0.14);
+      const signBase = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.24), trimMat);
+      signBase.position.set(0, 1.39, -0.14);
+      bodyGroup.add(chassis, cabin, roof, sign, signBase);
     } else {
       // Obey Tailgater (Sedan) OR Vapid LSPD Police Cruiser!
       const isPolice = kind === 'police';

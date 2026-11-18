@@ -1258,6 +1258,9 @@ export class UIManager {
         ['Bravado Gauntlet', 'Muscle', 'muscle'],
         ['Pegassi Bati 801', 'Sportbike', 'bike'],
         ['Benefactor Dubsta', 'SUV', 'suv'],
+        ['Benefactor Schafter', 'Luxury', 'luxury'],
+        ['Declasse Tornado', 'Classic', 'vintage'],
+        ['Vapid Taxi', 'Service', 'cab'],
         ['LSPD Interceptor', 'Emergency', 'police'],
         ['Buckingham Maverick', 'Helicopter', 'helicopter'],
       ];

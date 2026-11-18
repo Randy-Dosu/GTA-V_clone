@@ -6,7 +6,7 @@ import { Vehicle } from '../src/entities/Vehicle';
 import { VehicleFactory } from '../src/entities/VehicleFactory';
 import { EffectsManager } from '../src/graphics/EffectsManager';
 import { TextureFactory } from '../src/graphics/TextureFactory';
-import { BuildingCollider } from '../src/types';
+import { BuildingCollider, VEHICLE_SPECS, VehicleKind } from '../src/types';
 import { createDefaultStuntRamps } from '../src/world/WorldData';
 
 function makeVehicleFactory(): VehicleFactory {
@@ -105,6 +105,45 @@ describe('Player, Vehicles, Helicopter & Camera Physics', () => {
     expect(player.dead).toBe(false);
     expect(player.health).toBe(player.maxHealth);
     expect(player.cash).toBeLessThanOrEqual(cashBefore);
+  });
+
+  it('builds luxury, vintage and cab vehicles with sane specs and drivable physics', () => {
+    const scene = new THREE.Scene();
+    const factory = makeVehicleFactory();
+    const effects = new EffectsManager(scene);
+    const kinds: VehicleKind[] = ['luxury', 'vintage', 'cab'];
+
+    for (const kind of kinds) {
+      const spec = VEHICLE_SPECS[kind];
+      expect(spec).toBeDefined();
+      expect(spec.maxSpeed).toBeGreaterThan(20);
+      expect(spec.maxSpeed).toBeLessThan(50); // street cars, not hypercars
+      expect(spec.colors.length).toBeGreaterThan(0);
+
+      const car = new Vehicle(factory, scene, kind, 0, 0, 0, 0);
+      car.isPlayerDriven = true;
+      expect(car.rig).toBeDefined();
+      expect(car.rig.root).toBeDefined();
+      expect(scene.children.length).toBeGreaterThan(0);
+
+      for (let i = 0; i < 30; i++) {
+        car.update(
+          1 / 60,
+          { throttle: 0.8, steer: 0.2, handbrake: false, boost: false, ascend: 0, focusGrip: false },
+          [],
+          [],
+          effects,
+          0
+        );
+      }
+      expect(Number.isNaN(car.pos.x)).toBe(false);
+      expect(Number.isNaN(car.pos.z)).toBe(false);
+      expect(car.speed).toBeGreaterThan(4);
+      scene.clear();
+    }
+
+    // Cabs always come in the signature taxi yellow
+    expect(VEHICLE_SPECS.cab.colors).toEqual([0xf5b800]);
   });
 
   it('simulates proportional analog driving, steering, drifting, boost, collisions, LS Customs & explosions', () => {

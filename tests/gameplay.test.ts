@@ -84,9 +84,17 @@ describe('Traffic, LSPD Police Pursuit & Story Missions', () => {
     expect(police.evading).toBe(false);
   });
 
-  it('starts, tracks objectives, and aborts all 4 Los Santos Story Missions cleanly', () => {
+  it('starts, tracks objectives, and aborts all 6 Los Santos Story Missions cleanly', () => {
     const { missions, player, effects, ramps } = createSandbox();
-    expect(missions.missions.length).toBe(4);
+    expect(missions.missions.length).toBe(6);
+    expect(missions.missions.map((m) => m.id)).toEqual([
+      'franklin_sprint',
+      'simeon_repo',
+      'lester_heist',
+      'michael_chopper',
+      'collector_run',
+      'cab_fares',
+    ]);
 
     for (const m of missions.missions) {
       expect(m.reward).toBeGreaterThan(0);
