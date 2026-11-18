@@ -123,6 +123,41 @@ export class Vehicle {
     return new THREE.Vector3(this.pos.x + leftX, this.pos.y, this.pos.z + leftZ);
   }
 
+  /**
+   * Solid OBB-vs-circle resolution in the car's local frame: keeps any
+   * walking character (player, pedestrians, LSPD officers) out of the chassis
+   * — including the nose and tail that the old two-circle approximation
+   * leaked through. Pushes the point out along the shallowest axis and
+   * returns true when a push happened.
+   */
+  public pushPointOut(point: THREE.Vector3, radius: number): boolean {
+    if (this.destroyed) return false;
+    if (Math.abs(point.y - this.pos.y) > 2.4) return false;
+    const dx = point.x - this.pos.x;
+    const dz = point.z - this.pos.z;
+    const sinH = Math.sin(this.heading);
+    const cosH = Math.cos(this.heading);
+    // Local axes: forward = (sinH, cosH), right = (-cosH, sinH)
+    const lf = dx * sinH + dz * cosH;
+    const lr = -dx * cosH + dz * sinH;
+    const exF = this.spec.halfLength + radius;
+    const exR = this.spec.halfWidth + radius;
+    if (Math.abs(lf) >= exF || Math.abs(lr) >= exR) return false;
+
+    const penF = exF - Math.abs(lf);
+    const penR = exR - Math.abs(lr);
+    if (penF <= penR) {
+      const s = lf >= 0 ? 1 : -1;
+      point.x += sinH * penF * s;
+      point.z += cosH * penF * s;
+    } else {
+      const s = lr >= 0 ? 1 : -1;
+      point.x += -cosH * penR * s;
+      point.z += sinH * penR * s;
+    }
+    return true;
+  }
+
   public applyDamage(
     amount: number,
     effects: EffectsManager,

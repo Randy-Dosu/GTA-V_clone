@@ -58,6 +58,53 @@ describe('Traffic, LSPD Police Pursuit & Story Missions', () => {
     }
   });
 
+  it('keeps walking humans out of car bodies — peds and player cannot clip through vehicles', () => {
+    const { traffic, player, effects, ramps } = createSandbox();
+
+    // Park a sedan facing +Z in a quiet block, well clear of the road grid
+    // so passing traffic doesn't jostle the test subjects
+    const car = traffic.spawnParkedVehicle('sedan', -40, 0, -20, 0, 0xf4f6f9);
+    const halfL = car.spec.halfLength;
+    const halfW = car.spec.halfWidth;
+
+    // Probe the OBB with a 0.30 margin — the resolver pushes with 0.34, so a
+    // correctly-resolved character sits at least 4cm outside this probe.
+    const insideOBB = (px: number, pz: number, radius: number): boolean => {
+      const dx = px - car.pos.x;
+      const dz = pz - car.pos.z;
+      return Math.abs(dx) < halfW + radius && Math.abs(dz) < halfL + radius; // heading 0: fwd = +Z
+    };
+
+    // 1. A pedestrian placed INSIDE the chassis gets pushed fully out
+    const ped = traffic.peds[0];
+    ped.pos.set(car.pos.x, 0, car.pos.z);
+    ped.pauseTimer = 99; // keep them still so only the pushout moves them
+    for (let i = 0; i < 6; i++) {
+      traffic.update(1 / 30, player.pos, player, [], ramps, effects, 0.2, {
+        onPlayerCollision: () => {},
+        onPedKilledByPlayer: () => {},
+        onVehicleExplode: () => {},
+      });
+    }
+    expect(insideOBB(ped.pos.x, ped.pos.z, 0.3)).toBe(false);
+
+    // 2. Player walking into the car NOSE (the old leak) is blocked at the bumper
+    player.pos.set(car.pos.x, 0.14, car.pos.z + halfL - 0.05);
+    player.vel.set(0, 0, 5); // marching straight into the nose
+    for (let i = 0; i < 10; i++) {
+      player.updateOnFoot(1 / 30, 1, 0, false, false, false, Math.PI, 0, [], [], traffic.vehicles);
+    }
+    expect(insideOBB(player.pos.x, player.pos.z, 0.3)).toBe(false);
+
+    // 3. Walking through the car SIDE is blocked too
+    player.pos.set(car.pos.x + halfW - 0.05, 0.14, car.pos.z);
+    player.vel.set(0, 0, 0);
+    for (let i = 0; i < 10; i++) {
+      player.updateOnFoot(1 / 30, 0, 1, false, false, false, Math.PI, 0, [], [], traffic.vehicles);
+    }
+    expect(insideOBB(player.pos.x, player.pos.z, 0.3)).toBe(false);
+  });
+
   it('escalates LSPD wanted stars 1..5, dispatches cruisers, and clears wanted heat cleanly', () => {
     const { police, player, effects, ramps, audio } = createSandbox();
     expect(police.wantedLevel).toBe(0);

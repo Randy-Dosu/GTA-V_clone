@@ -658,5 +658,23 @@ export class TrafficAndPeds {
       p.rig.root.rotation.y = p.heading;
       p.rig.updateAnimation(dt, moveSpd, sprinting, true, false);
     }
+
+    // 5. Solid cars: every walking character (civilians AND LSPD officers) is
+    // pushed out of vehicle bodies — nobody walks through a car anymore.
+    for (const p of this.peds) {
+      if (p.dead) continue;
+      for (const v of this.vehicles) {
+        if (v.kind === 'helicopter' && v.airborne) continue;
+        const dx = p.pos.x - v.pos.x;
+        const dz = p.pos.z - v.pos.z;
+        const reach = v.spec.halfLength + v.spec.halfWidth + 1.0;
+        if (dx * dx + dz * dz > reach * reach) continue;
+        if (v.pushPointOut(p.pos, 0.34)) {
+          p.rig.root.position.copy(p.pos);
+          // Nudge walk path away from the car so they route around it
+          p.walkDir = Math.atan2(dx, dz);
+        }
+      }
+    }
   }
 }

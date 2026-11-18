@@ -414,22 +414,20 @@ export class Player {
       }
     }
 
-    // Solid vehicle collision: the player cannot walk through cars (two-circle OBB approx)
+    // Solid vehicle collision: the player cannot walk through cars —
+    // full OBB resolution covers doors, corners, noses & tails (no clipping!)
     for (const v of vehicles) {
       if (v.destroyed || v === this.currentVehicle) continue;
-      if (Math.abs(v.pos.y - this.pos.y) > 2.2) continue;
-      const fwdX = Math.sin(v.heading);
-      const fwdZ = Math.cos(v.heading);
-      const r = v.spec.halfWidth + 0.28;
-      for (const s of [-1, 1]) {
-        const cx = v.pos.x + fwdX * s * v.spec.halfLength * 0.55;
-        const cz = v.pos.z + fwdZ * s * v.spec.halfLength * 0.55;
-        const dx = this.pos.x - cx;
-        const dz = this.pos.z - cz;
-        const d = Math.hypot(dx, dz);
-        if (d > 0.0001 && d < r) {
-          this.pos.x += (dx / d) * (r - d);
-          this.pos.z += (dz / d) * (r - d);
+      if (v.kind === 'helicopter' && v.airborne) continue;
+      if (v.pushPointOut(this.pos, 0.34)) {
+        // Remove the velocity component pushing into the car so we don't jitter
+        const nx = this.pos.x - v.pos.x;
+        const nz = this.pos.z - v.pos.z;
+        const nd = Math.hypot(nx, nz) || 1;
+        const vn = (this.vel.x * nx + this.vel.z * nz) / nd;
+        if (vn < 0) {
+          this.vel.x -= (nx / nd) * vn;
+          this.vel.z -= (nz / nd) * vn;
         }
       }
     }
