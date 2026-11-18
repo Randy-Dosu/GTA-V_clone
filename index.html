@@ -86,6 +86,7 @@
           <div class="title-menu">
             <button id="btn-title-settings" class="title-tab" type="button">SETTINGS</button>
             <button id="btn-title-controls" class="title-tab" type="button">CONTROLS</button>
+            <button id="btn-title-radio" class="title-tab" type="button">RADIO</button>
             <button id="btn-start-story" class="title-tab primary" type="button">STORY MODE</button>
           </div>
         </nav>
@@ -153,8 +154,16 @@
         <!-- Bottom-Center Mission Objective Subtitle -->
         <div id="objective-bar" class="objective-bar hidden"></div>
 
-        <!-- Bottom-Right Ephemeral Vehicle / Street / District Readout + Speed -->
+        <!-- Bottom-Right Ephemeral Vehicle / Street / District + Soundtrack Readout + Speed -->
         <div class="hud-bottom-right">
+          <div id="now-playing" class="now-playing hidden">
+            <div class="np-station-row">
+              <span id="np-dot" class="np-dot"></span>
+              <span id="np-station" class="np-station">GOLD COAST FM</span>
+            </div>
+            <div id="np-title" class="np-title">Jejereje (feat. Ginton)</div>
+            <div id="np-artist" class="np-artist">Stonebwoy</div>
+          </div>
           <div id="speed-box" class="speed-box hidden">
             <span id="speed-val">0</span>
             <span id="speed-unit">MPH</span>
@@ -183,13 +192,14 @@
           </div>
         </div>
 
-        <!-- GTA V Radio Station Wheel (Hold Q in vehicle) -->
+        <!-- GTA V Radio & Soundtrack Wheel (Hold Q or D-Pad Left) -->
         <div id="radio-wheel" class="radial-overlay hidden">
           <div class="wheel-container radio-container">
             <div id="radio-slots" class="wheel-slots"></div>
             <div class="wheel-center">
-              <div id="wheel-radio-name" class="wheel-title">WEST COAST CLASSICS</div>
-              <div id="wheel-radio-track" class="wheel-sub">Pacific Blvd Cruisin'</div>
+              <div id="wheel-radio-name" class="wheel-title">GOLD COAST FM</div>
+              <div id="wheel-radio-track" class="wheel-sub">Stonebwoy — Jejereje</div>
+              <div id="wheel-radio-hint" class="wheel-hint">Press N to skip track</div>
             </div>
           </div>
         </div>
@@ -256,6 +266,7 @@
           <nav class="pause-tabs">
             <button class="pause-tab active" data-tab="map" type="button">MAP</button>
             <button class="pause-tab" data-tab="missions" type="button">BRIEF</button>
+            <button class="pause-tab" data-tab="radio" type="button">RADIO</button>
             <button class="pause-tab" data-tab="controls" type="button">CONTROLS</button>
             <button class="pause-tab" data-tab="settings" type="button">SETTINGS</button>
             <button id="btn-resume" class="pause-tab resume-tab" type="button">RESUME</button>
@@ -282,6 +293,11 @@
               <div id="missions-list" class="missions-grid"></div>
             </div>
 
+            <!-- RADIO / SOUNDTRACK TAB -->
+            <div id="tab-radio" class="pause-panel">
+              <div id="pause-radio-content"></div>
+            </div>
+
             <!-- CONTROLS TAB -->
             <div id="tab-controls" class="pause-panel">
               <div id="pause-controls-content"></div>
@@ -294,6 +310,13 @@
           </div>
         </div>
       </section>
+      <input
+        id="music-file-input"
+        type="file"
+        accept="audio/*,.mp3,.m4a,.ogg,.opus,.wav,.flac,.aac"
+        multiple
+        class="hidden"
+      />
     </div>
 
     <script type="module" src="/src/main.ts"></script>

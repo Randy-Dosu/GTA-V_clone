@@ -94,16 +94,18 @@ export interface WeaponSpec {
 }
 
 export type RadioStationId =
-  | 'off'
-  | 'mirror_park'
-  | 'west_coast'
-  | 'non_stop_pop'
-  | 'ls_rock';
+  | 'gold_coast'
+  | 'bhim_fm'
+  | 'scatter_fm'
+  | 'ground_up'
+  | 'off';
 
 export interface RadioStation {
   id: RadioStationId;
   name: string;
+  shortLabel: string;
   genre: string;
+  host: string;
   track: string;
   color: string;
   bpm: number;
@@ -170,6 +172,7 @@ export interface GameSettings {
   masterVolume: number;
   musicVolume: number;
   sfxVolume: number;
+  soundtrackOnFoot: boolean;
   invertY: boolean;
   autoTimeCycle: boolean;
   showSpeedometer: boolean;
@@ -487,41 +490,51 @@ export const WEAPON_SPECS: WeaponSpec[] = [
 
 export const RADIO_STATIONS: RadioStation[] = [
   {
-    id: 'west_coast',
-    name: 'West Coast Classics',
-    genre: 'G-Funk & Golden Era',
-    track: 'Pacific Blvd Cruisin\'',
-    color: '#5ec96f',
-    bpm: 94,
+    id: 'gold_coast',
+    name: 'Gold Coast FM',
+    shortLabel: 'GOLD',
+    genre: 'Stonebwoy • Kweku Smoke • Kwesi Arthur',
+    host: 'Ghana All-Stars Mix',
+    track: 'Stonebwoy — Into the Future',
+    color: '#fbbf24',
+    bpm: 108,
   },
   {
-    id: 'mirror_park',
-    name: 'Radio Mirror Park',
-    genre: 'Indie Synthwave',
-    track: 'Midnight Over Vinewood',
+    id: 'bhim_fm',
+    name: 'BHIM Nation 101.9',
+    shortLabel: 'BHIM',
+    genre: 'Afro-Dancehall & Reggae',
+    host: 'Stonebwoy Essentials',
+    track: 'Stonebwoy — Jejereje',
+    color: '#22c55e',
+    bpm: 106,
+  },
+  {
+    id: 'scatter_fm',
+    name: 'Scatter Der 96.5',
+    shortLabel: 'SCTR',
+    genre: 'GH Drill, Asakaa & Trap',
+    host: 'Kweku Smoke Radio',
+    track: 'Kweku Smoke — Holy Ghost',
+    color: '#f87171',
+    bpm: 138,
+  },
+  {
+    id: 'ground_up',
+    name: 'Ground Up 99.7',
+    shortLabel: 'GRND',
+    genre: 'Afro-Fusion & Tema Hip-Hop',
+    host: 'Kwesi Arthur Radio',
+    track: 'Kwesi Arthur — Grind Day',
     color: '#59a9e6',
-    bpm: 112,
-  },
-  {
-    id: 'non_stop_pop',
-    name: 'Non-Stop-Pop FM',
-    genre: 'Pop & Dance',
-    track: 'Del Perro Lights',
-    color: '#e868a2',
-    bpm: 124,
-  },
-  {
-    id: 'ls_rock',
-    name: 'Los Santos Rock Radio',
-    genre: 'Classic California Rock',
-    track: 'Sunset Highway Run',
-    color: '#f09446',
-    bpm: 118,
+    bpm: 114,
   },
   {
     id: 'off',
     name: 'Radio Off',
-    genre: 'Engine Audio Only',
+    shortLabel: 'OFF',
+    genre: 'City & Engine Audio Only',
+    host: '',
     track: '',
     color: '#8e99a6',
     bpm: 0,

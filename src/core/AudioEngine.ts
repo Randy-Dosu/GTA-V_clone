@@ -1,10 +1,28 @@
-import { RadioStationId, RADIO_STATIONS, VehicleKind, WeaponId } from '../types';
+import {
+  GOLD_COAST_ROTATION_IDS,
+  INITIAL_SOUNDTRACK,
+  LeadInstrument,
+  midiToFreq,
+  SoundtrackSong,
+} from '../audio/SoundtrackData';
+import { GameMode, RadioStation, RadioStationId, RADIO_STATIONS, VehicleKind, WeaponId } from '../types';
+
+export interface ImportAudioResult {
+  total: number;
+  matched: number;
+  added: number;
+  firstSong: SoundtrackSong | null;
+}
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private musicFilter: BiquadFilterNode | null = null;
+  private delayNode: DelayNode | null = null;
+  private delaySend: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
 
   // Engine continuous nodes
@@ -22,16 +40,323 @@ export class AudioEngine {
   private sirenGain: GainNode | null = null;
   private sirenPhase = 0;
 
-  // Radio sequencer
-  public currentStation: RadioStationId = 'west_coast';
-  private radioActive = false;
+  // Soundtrack & Radio playlist state
+  private _currentStation: RadioStationId = 'gold_coast';
+  public readonly catalog: SoundtrackSong[] = INITIAL_SOUNDTRACK.map((s) => ({ ...s }));
+  private customGoldCoastIds: string[] = [];
+  private stationTrackCursor: Record<Exclude<RadioStationId, 'off'>, number> = {
+    gold_coast: 0,
+    bhim_fm: 0,
+    scatter_fm: 0,
+    ground_up: 0,
+  };
   private stepTimer = 0;
   private stepIndex = 0;
+  private songElapsed = 0;
+  private pausedByUser = false;
+
+  // HTMLAudioElement for real studio audio files (imported in-game or via public/music/manifest.json)
+  private htmlAudio: HTMLAudioElement | null = null;
+  private htmlAudioSongId: string | null = null;
+  private htmlAudioFailed = new Set<string>();
+  private manifestLoaded = false;
+
+  // Callback whenever station or track changes
+  public onTrackChange?: (song: SoundtrackSong | null, station: RadioStation) => void;
 
   // Volumes
   private masterVol = 0.65;
-  private musicVol = 0.45;
+  private musicVol = 0.5;
   private sfxVol = 0.75;
+  private currentDuck = 1.0;
+
+  constructor() {
+    this.loadManifest();
+  }
+
+  public get currentStation(): RadioStationId {
+    return this._currentStation;
+  }
+
+  public set currentStation(id: RadioStationId) {
+    this.setStation(id, true);
+  }
+
+  public get isMusicPaused(): boolean {
+    return this.pausedByUser;
+  }
+
+  public toggleMusicPause(): boolean {
+    this.pausedByUser = !this.pausedByUser;
+    if (this.pausedByUser && this.htmlAudio && !this.htmlAudio.paused) {
+      this.htmlAudio.pause();
+    }
+    return this.pausedByUser;
+  }
+
+  public getStation(id: RadioStationId = this._currentStation): RadioStation {
+    return RADIO_STATIONS.find((s) => s.id === id) || RADIO_STATIONS[0];
+  }
+
+  public getStationTracks(station: RadioStationId = this._currentStation): SoundtrackSong[] {
+    if (station === 'off') return [];
+    if (station === 'gold_coast') {
+      const ordered: SoundtrackSong[] = [];
+      const seen = new Set<string>();
+      for (const id of [...this.customGoldCoastIds, ...GOLD_COAST_ROTATION_IDS]) {
+        const s = this.catalog.find((t) => t.id === id);
+        if (s && !seen.has(s.id)) {
+          ordered.push(s);
+          seen.add(s.id);
+        }
+      }
+      for (const s of this.catalog) {
+        if (!seen.has(s.id)) ordered.push(s);
+      }
+      return ordered;
+    }
+    return this.catalog.filter((s) => s.station === station);
+  }
+
+  public getCurrentSong(station: RadioStationId = this._currentStation): SoundtrackSong | null {
+    if (station === 'off') return null;
+    const tracks = this.getStationTracks(station);
+    if (tracks.length === 0) return null;
+    const idx = ((this.stationTrackCursor[station] % tracks.length) + tracks.length) % tracks.length;
+    return tracks[idx];
+  }
+
+  public getRealAudioCount(): number {
+    return this.catalog.filter((s) => !!s.audioUrl && !this.htmlAudioFailed.has(s.id)).length;
+  }
+
+  public setStation(id: RadioStationId, notify = true): void {
+    const changed = this._currentStation !== id;
+    this._currentStation = id;
+    this.pausedByUser = false;
+    if (changed) {
+      this.resetSynthTransport();
+      this.stopHtmlAudio();
+      this.syncDelayToCurrentSong();
+    }
+    const station = this.getStation(id);
+    const song = this.getCurrentSong(id);
+    if (song) {
+      station.track = `${song.artist} — ${song.title}`;
+      station.bpm = song.bpm;
+    }
+    if (notify && changed) {
+      this.onTrackChange?.(song, station);
+    }
+  }
+
+  public nextTrack(dir: 1 | -1 = 1, notify = true): SoundtrackSong | null {
+    if (this._currentStation === 'off') {
+      this.setStation('gold_coast', notify);
+      return this.getCurrentSong();
+    }
+    const st = this._currentStation;
+    const tracks = this.getStationTracks(st);
+    if (tracks.length === 0) return null;
+    this.stationTrackCursor[st] =
+      (this.stationTrackCursor[st] + dir + tracks.length) % tracks.length;
+    this.pausedByUser = false;
+    this.resetSynthTransport();
+    this.stopHtmlAudio();
+    this.syncDelayToCurrentSong();
+
+    const song = this.getCurrentSong(st);
+    const station = this.getStation(st);
+    if (song) {
+      station.track = `${song.artist} — ${song.title}`;
+      station.bpm = song.bpm;
+    }
+    if (notify) {
+      this.onTrackChange?.(song, station);
+    }
+    return song;
+  }
+
+  public playSongById(
+    songId: string,
+    preferredStation?: Exclude<RadioStationId, 'off'>,
+    notify = true
+  ): SoundtrackSong | null {
+    const song = this.catalog.find((s) => s.id === songId);
+    if (!song) return null;
+    const targetStation: Exclude<RadioStationId, 'off'> =
+      preferredStation ??
+      (this._currentStation === 'gold_coast' ? 'gold_coast' : song.station);
+    const tracks = this.getStationTracks(targetStation);
+    const idx = tracks.findIndex((t) => t.id === song.id);
+    this._currentStation = targetStation;
+    this.stationTrackCursor[targetStation] = Math.max(0, idx);
+    this.pausedByUser = false;
+    this.resetSynthTransport();
+    this.stopHtmlAudio();
+    this.syncDelayToCurrentSong();
+
+    const station = this.getStation(targetStation);
+    station.track = `${song.artist} — ${song.title}`;
+    station.bpm = song.bpm;
+    if (notify) {
+      this.onTrackChange?.(song, station);
+    }
+    return song;
+  }
+
+  private async loadManifest(): Promise<void> {
+    if (this.manifestLoaded || typeof fetch === 'undefined') return;
+    this.manifestLoaded = true;
+    try {
+      const res = await fetch('/music/manifest.json', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { files?: Record<string, string> };
+      if (!data?.files || typeof data.files !== 'object') return;
+      for (const [key, url] of Object.entries(data.files)) {
+        if (typeof url !== 'string' || !url.trim()) continue;
+        const exact = this.catalog.find((s) => s.id === key);
+        if (exact) {
+          exact.audioUrl = url.trim();
+          this.htmlAudioFailed.delete(exact.id);
+        } else {
+          this.bindAudioByLabel(key, url.trim());
+        }
+      }
+    } catch {
+      // Manifest is optional; synthesized soundtrack plays seamlessly by default
+    }
+  }
+
+  /**
+   * Bind local user-selected MP3 / M4A / WAV / OGG / FLAC files directly into the
+   * Stonebwoy, Kweku Smoke & Kwesi Arthur radio stations.
+   */
+  public importLocalAudioFiles(fileList: FileList | File[]): ImportAudioResult {
+    const files = Array.from(fileList).filter(
+      (f) => f.type.startsWith('audio/') || /\.(mp3|m4a|ogg|opus|wav|flac|aac|webm)$/i.test(f.name)
+    );
+    let matched = 0;
+    let added = 0;
+    let firstSong: SoundtrackSong | null = null;
+
+    for (const file of files) {
+      const blobUrl = URL.createObjectURL(file);
+      const rawLabel = file.name.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').trim();
+      const outcome = this.bindAudioByLabel(rawLabel, blobUrl);
+      if (outcome.wasExisting) matched++;
+      else added++;
+      if (!firstSong) firstSong = outcome.song;
+    }
+
+    if (firstSong) {
+      this.unlock();
+      this.playSongById(firstSong.id, firstSong.station, true);
+    }
+
+    return { total: files.length, matched, added, firstSong };
+  }
+
+  private bindAudioByLabel(
+    rawLabel: string,
+    url: string
+  ): { song: SoundtrackSong; wasExisting: boolean } {
+    const norm = rawLabel.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // 1. Try matching an existing curated Stonebwoy / Kweku Smoke / Kwesi Arthur hit
+    for (const song of this.catalog) {
+      const hitKeyword = song.keywords.some((kw) => norm.includes(kw));
+      if (hitKeyword) {
+        song.audioUrl = url;
+        this.htmlAudioFailed.delete(song.id);
+        return { song, wasExisting: true };
+      }
+    }
+
+    // 2. Otherwise detect artist -> route to their dedicated station + Gold Coast FM!
+    let artist = 'Custom Track';
+    let station: Exclude<RadioStationId, 'off' | 'gold_coast'> = 'bhim_fm';
+    let title = rawLabel;
+
+    if (norm.includes('stonebwoy') || norm.includes('bhim') || norm.includes('1gad')) {
+      artist = 'Stonebwoy';
+      station = 'bhim_fm';
+    } else if (norm.includes('kweku smoke') || norm.includes('kwekusmoke') || norm.includes('playman')) {
+      artist = 'Kweku Smoke';
+      station = 'scatter_fm';
+    } else if (norm.includes('kwesi arthur') || norm.includes('kwesiarthur') || norm.includes('ground up')) {
+      artist = 'Kwesi Arthur';
+      station = 'ground_up';
+    } else if (rawLabel.includes(' - ')) {
+      const parts = rawLabel.split(' - ');
+      artist = parts[0].trim();
+      title = parts.slice(1).join(' - ').trim();
+    }
+
+    // Clean redundant artist prefix from title if present
+    const dashParts = rawLabel.split(/\s*[-–—]\s*/);
+    if (dashParts.length >= 2 && dashParts[0].toLowerCase().includes(artist.toLowerCase())) {
+      title = dashParts.slice(1).join(' - ').trim() || rawLabel;
+    }
+
+    const template = this.catalog.find((s) => s.station === station) || this.catalog[0];
+    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newSong: SoundtrackSong = {
+      ...template,
+      id,
+      artist,
+      title,
+      album: 'Imported Soundtrack',
+      year: 2026,
+      station,
+      keywords: [norm],
+      audioUrl: url,
+    };
+    this.catalog.unshift(newSong);
+    this.customGoldCoastIds.unshift(id);
+    return { song: newSong, wasExisting: false };
+  }
+
+  private resetSynthTransport(): void {
+    this.stepTimer = 0;
+    this.stepIndex = 0;
+    this.songElapsed = 0;
+  }
+
+  private stopHtmlAudio(): void {
+    if (this.htmlAudio) {
+      this.htmlAudio.pause();
+      this.htmlAudio.currentTime = 0;
+    }
+    this.htmlAudioSongId = null;
+  }
+
+  private ensureHtmlAudio(): HTMLAudioElement {
+    if (!this.htmlAudio) {
+      const el = new Audio();
+      el.preload = 'auto';
+      el.addEventListener('ended', () => {
+        this.nextTrack(1, true);
+      });
+      el.addEventListener('error', () => {
+        if (this.htmlAudioSongId) {
+          this.htmlAudioFailed.add(this.htmlAudioSongId);
+          this.htmlAudioSongId = null;
+        }
+      });
+      this.htmlAudio = el;
+    }
+    return this.htmlAudio;
+  }
+
+  private syncDelayToCurrentSong(): void {
+    if (!this.ctx || !this.delayNode) return;
+    const song = this.getCurrentSong();
+    if (!song) return;
+    const effectiveBpm = song.bpm >= 126 ? song.bpm * 0.5 : song.bpm;
+    const dottedEighth = Math.min(0.65, Math.max(0.14, (60 / effectiveBpm) * 0.75));
+    this.delayNode.delayTime.setTargetAtTime(dottedEighth, this.ctx.currentTime, 0.04);
+  }
 
   public unlock(): void {
     if (this.ctx) {
@@ -41,7 +366,9 @@ export class AudioEngine {
       return;
     }
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       this.ctx = new AudioCtx();
 
@@ -53,9 +380,47 @@ export class AudioEngine {
       this.sfxGain.gain.value = this.sfxVol;
       this.sfxGain.connect(this.masterGain);
 
+      // Warm studio soundtrack bus: musicBus -> lowpass (pause muffle) -> soft compressor -> musicGain
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = this.musicVol;
       this.musicGain.connect(this.masterGain);
+
+      const comp = this.ctx.createDynamicsCompressor();
+      comp.threshold.value = -14;
+      comp.knee.value = 18;
+      comp.ratio.value = 3.2;
+      comp.attack.value = 0.008;
+      comp.release.value = 0.16;
+      comp.connect(this.musicGain);
+
+      this.musicFilter = this.ctx.createBiquadFilter();
+      this.musicFilter.type = 'lowpass';
+      this.musicFilter.frequency.value = 16500;
+      this.musicFilter.Q.value = 0.7;
+      this.musicFilter.connect(comp);
+
+      this.musicBus = this.ctx.createGain();
+      this.musicBus.gain.value = 1.0;
+      this.musicBus.connect(this.musicFilter);
+
+      // Lush tempo-synced Afrobeats / dub echo bus for guitars, marimbas, bells & chords
+      this.delaySend = this.ctx.createGain();
+      this.delaySend.gain.value = 0.24;
+      this.delayNode = this.ctx.createDelay(1.0);
+      this.delayNode.delayTime.value = 0.34;
+      const delayFb = this.ctx.createGain();
+      delayFb.gain.value = 0.28;
+      const delayTone = this.ctx.createBiquadFilter();
+      delayTone.type = 'bandpass';
+      delayTone.frequency.value = 1450;
+      delayTone.Q.value = 0.9;
+
+      this.delaySend.connect(this.delayNode);
+      this.delayNode.connect(delayTone);
+      delayTone.connect(this.musicFilter);
+      delayTone.connect(delayFb);
+      delayFb.connect(this.delayNode);
+      this.syncDelayToCurrentSong();
 
       // Shared white noise buffer
       const length = this.ctx.sampleRate * 2;
@@ -132,10 +497,603 @@ export class AudioEngine {
     this.musicVol = music;
     this.sfxVol = sfx;
     if (this.masterGain) this.masterGain.gain.value = master;
-    if (this.musicGain) this.musicGain.gain.value = music;
+    if (this.musicGain) this.musicGain.gain.value = music * this.currentDuck;
     if (this.sfxGain) this.sfxGain.gain.value = sfx;
+    if (this.htmlAudio) {
+      this.htmlAudio.volume = Math.max(0, Math.min(1, master * music * this.currentDuck));
+    }
   }
 
+  /**
+   * Master frame update for the Stonebwoy / Kweku Smoke / Kwesi Arthur soundtrack.
+   * Plays continuously across Title, On-Foot (configurable), Vehicles, Shops, and softly
+   * low-passed in the GTA V Pause Menu.
+   */
+  public updateSoundtrack(
+    mode: GameMode,
+    inVehicle: boolean,
+    soundtrackOnFoot: boolean,
+    dt: number
+  ): void {
+    const song = this.getCurrentSong();
+    const shouldPlay =
+      !!song &&
+      this._currentStation !== 'off' &&
+      !this.pausedByUser &&
+      this.musicVol > 0.005 &&
+      this.masterVol > 0.005 &&
+      mode !== 'wasted' &&
+      (mode !== 'playing' || inVehicle || soundtrackOnFoot);
+
+    // Determine mix gain & low-pass tone per GTA V scene
+    let targetDuck = 0;
+    let targetCutoff = 16500;
+    if (shouldPlay) {
+      if (mode === 'playing') {
+        targetDuck = inVehicle ? 1.0 : 0.78;
+        targetCutoff = inVehicle ? 17500 : 14500;
+      } else if (mode === 'title') {
+        targetDuck = 0.76;
+        targetCutoff = 15000;
+      } else if (mode === 'lscustoms' || mode === 'ammunation') {
+        targetDuck = 0.74;
+        targetCutoff = 5400;
+      } else if (mode === 'paused') {
+        targetDuck = 0.42;
+        targetCutoff = 1550;
+      } else if (mode === 'switching') {
+        targetDuck = 0.48;
+        targetCutoff = 2600;
+      }
+    }
+
+    this.currentDuck = targetDuck;
+    if (this.ctx && this.musicGain && this.musicFilter) {
+      const now = this.ctx.currentTime;
+      this.musicGain.gain.setTargetAtTime(this.musicVol * targetDuck, now, 0.08);
+      this.musicFilter.frequency.setTargetAtTime(targetCutoff, now, 0.1);
+    }
+
+    if (!shouldPlay || !song) {
+      if (this.htmlAudio && !this.htmlAudio.paused) {
+        this.htmlAudio.pause();
+      }
+      return;
+    }
+
+    // Path A: Stream real studio audio if an MP3/M4A/OGG/WAV is linked for this song
+    if (song.audioUrl && !this.htmlAudioFailed.has(song.id)) {
+      const el = this.ensureHtmlAudio();
+      if (this.htmlAudioSongId !== song.id) {
+        this.htmlAudioSongId = song.id;
+        el.src = song.audioUrl;
+        el.currentTime = 0;
+      }
+      el.volume = Math.max(0, Math.min(1, this.masterVol * this.musicVol * targetDuck));
+      if (el.paused && this.ctx && this.ctx.state === 'running') {
+        el.play().catch(() => {});
+      }
+      return;
+    }
+
+    // Path B: Genre-authentic Web Audio Afro-Dancehall / GH Drill / Afro-Fusion arrangement
+    if (this.htmlAudio && !this.htmlAudio.paused) {
+      this.htmlAudio.pause();
+    }
+    if (!this.ctx || this.ctx.state !== 'running' || !this.musicBus) return;
+
+    this.songElapsed += dt;
+    if (this.songElapsed >= song.synthDuration) {
+      this.nextTrack(1, true);
+      return;
+    }
+
+    this.tickSoundtrackSequencer(song, dt);
+  }
+
+  private tickSoundtrackSequencer(song: SoundtrackSong, dt: number): void {
+    if (!this.ctx || !this.musicBus) return;
+
+    // Half-time pocket for GH Drill / Trap / Tema Hip-Hop (>= 125 BPM)
+    const halfTime =
+      song.style === 'gh_drill' ||
+      song.style === 'gh_trap' ||
+      song.style === 'melodic_trap' ||
+      song.style === 'tema_hiphop';
+
+    const baseSixteenth = 60 / song.bpm / (halfTime ? 2 : 4);
+    const isOffStep = this.stepIndex % 2 === 1;
+    const stepDur = baseSixteenth * (isOffStep ? 1 - song.swing : 1 + song.swing);
+
+    this.stepTimer += dt;
+    if (this.stepTimer < stepDur) return;
+    this.stepTimer = Math.min(this.stepTimer - stepDur, baseSixteenth * 0.5);
+
+    const step = this.stepIndex % 16;
+    const totalBar = Math.floor(this.stepIndex / 16);
+    const bar = totalBar % 4;
+    const section = Math.floor(totalBar / 4) % 3; // 0 = groove+hook, 1 = full chorus, 2 = dub/808 breakdown
+    this.stepIndex++;
+
+    const t = this.ctx.currentTime + 0.005;
+    const chord = song.chords[bar];
+    const rootMidi = song.bassRoots[bar];
+    const nextRootMidi = song.bassRoots[(bar + 1) % 4];
+    const melody = bar % 2 === 0 ? song.melodyA : song.melodyB;
+
+    // ===================== 1. DRUMS & PERCUSSION =====================
+    if (song.style === 'afro_dancehall') {
+      // Stonebwoy silky Afro-dancehall pocket (Into the Future, Therapy)
+      if (step === 0 || step === 8 || (bar % 2 === 1 && step === 14)) {
+        this.playAfroKick(t, 0.2);
+      }
+      // Classic 3-3-2 dancehall / Afrobeats rimshot timeline
+      if (step === 3 || step === 6 || step === 11 || step === 14) {
+        this.playRimshot(t, step === 6 || step === 14 ? 0.11 : 0.085, 860);
+      }
+      if (step % 2 === 0) this.playShaker(t, step % 4 === 2 ? 0.036 : 0.02);
+      if (step === 15 && bar === 3) this.playShaker(t, 0.045);
+
+      // Warm sub + log-drum syncopation
+      if (step === 0) this.playLogDrum(t, midiToFreq(rootMidi), 0.34, 0.22);
+      if (step === 6) this.playLogDrum(t, midiToFreq(rootMidi), 0.24, 0.18);
+      if (step === 10) this.playLogDrum(t, midiToFreq(rootMidi + 7), 0.22, 0.15);
+      if (step === 14) this.playLogDrum(t, midiToFreq(rootMidi), 0.2, 0.16);
+    } else if (song.style === 'afro_highlife' || song.style === 'afro_fusion') {
+      // Stonebwoy Jejereje & Kwesi Arthur Baajo / Celebrate / Nobody
+      if (step === 0 || step === 4 || step === 8 || step === 12) {
+        this.playAfroKick(t, step % 8 === 0 ? 0.19 : 0.14);
+      }
+      // West African asymmetric woodblock/rim timeline
+      if (step === 3 || step === 6 || step === 10 || step === 12 || step === 15) {
+        this.playRimshot(t, 0.085, step === 10 ? 1040 : 820);
+      }
+      this.playShaker(t, step % 4 === 2 ? 0.038 : step % 2 === 1 ? 0.016 : 0.022);
+
+      // Signature Amapiano / Afrobeats log-drum bass bounce!
+      if (step === 0) this.playLogDrum(t, midiToFreq(rootMidi), 0.32, 0.22);
+      if (step === 3) this.playLogDrum(t, midiToFreq(rootMidi), 0.2, 0.17);
+      if (step === 7) this.playLogDrum(t, midiToFreq(rootMidi + 12), 0.16, 0.12);
+      if (step === 10) this.playLogDrum(t, midiToFreq(rootMidi), 0.26, 0.19);
+      if (step === 14) this.playLogDrum(t, midiToFreq(nextRootMidi), 0.2, 0.15);
+    } else if (song.style === 'dancehall_club') {
+      // Stonebwoy Putuu high-energy dembow riddim
+      if (step === 0 || step === 4 || step === 8 || step === 12) this.playAfroKick(t, 0.22);
+      if (step === 3 || step === 6 || step === 11 || step === 14) this.playTrapSnare(t, 0.115);
+      if (step % 2 === 0) this.playHiHat(t, 0.03, 0.035);
+
+      if (step === 0 || step === 6 || step === 8 || step === 14) {
+        const pitch = step === 14 ? rootMidi + 5 : rootMidi;
+        this.playLogDrum(t, midiToFreq(pitch), 0.24, 0.22);
+      }
+    } else if (song.style === 'afro_reggae') {
+      // Stonebwoy Bawasaba one-drop / Afro-reggae skank
+      if (step === 0 || step === 8 || step === 11) this.playAfroKick(t, 0.18);
+      if (step === 4 || step === 12) this.playRimshot(t, 0.11, 780);
+      if (step % 2 === 0) this.playShaker(t, step % 4 === 2 ? 0.034 : 0.018);
+
+      // Offbeat reggae chord skank on steps 2, 6, 10, 14!
+      if (step === 2 || step === 6 || step === 10 || step === 14) {
+        for (const m of chord) {
+          this.playInstrument(t, midiToFreq(m + 12), 'guitar', 0.11, 0.042, true);
+        }
+      }
+      const regBass: Record<number, number> = { 0: 0, 3: 0, 6: 4, 8: 7, 12: 4, 14: 0 };
+      if (regBass[step] !== undefined) {
+        this.playLogDrum(t, midiToFreq(rootMidi + regBass[step]), 0.28, 0.2);
+      }
+    } else if (song.style === 'gh_drill') {
+      // Kweku Smoke Holy Ghost & Scatter — authentic 3-3-2 Asakaa/GH Drill + sliding 808s!
+      if (step === 0 || step === 10 || (bar % 2 === 1 && step === 7)) {
+        this.playAfroKick(t, 0.24);
+      }
+      // Signature drill snare placed on beat 3 (step 4) and shifted beat 4.5 (step 13/12)
+      if (step === 4 || step === 12 || (bar === 3 && step === 15)) {
+        this.playTrapSnare(t, 0.14);
+      }
+      // Iconic 3-3-2 drill counter-hat pattern: 0, 3, 6, 8, 11, 14 + ghost rolls!
+      const drillHats = step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14;
+      if (drillHats) {
+        this.playHiHat(t, 0.048, 0.042);
+      } else if (step === 7 || step === 15) {
+        this.playHiHat(t, 0.028, 0.025);
+        this.playHiHat(t + baseSixteenth * 0.5, 0.032, 0.025);
+      }
+
+      // Sliding 808 bass with octave/fifth pitch glides!
+      if (step === 0) {
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.55, 0.24);
+      } else if (step === 6) {
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi + 12), 0.26, 0.19);
+      } else if (step === 10) {
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi + 7), 0.34, 0.21);
+      } else if (step === 14 && bar % 2 === 1) {
+        this.playDrill808(t, midiToFreq(rootMidi + 12), midiToFreq(nextRootMidi), 0.28, 0.2);
+      }
+    } else {
+      // GH Trap / Melodic Trap / Tema Hip-Hop (Yedin, Dis Side, Young Boy, Grind Day, Winning)
+      if (step === 0 || step === 6 || step === 10 || (bar === 3 && step === 14)) {
+        this.playAfroKick(t, 0.23);
+      }
+      if (step === 4 || step === 12) {
+        this.playTrapSnare(t, 0.135);
+      }
+      // Crisp trap hi-hats + triplet/32nd roll on step 3, 11, 15
+      this.playHiHat(t, step % 2 === 0 ? 0.038 : 0.024, 0.032);
+      if (step === 11 || (bar % 2 === 1 && step === 15)) {
+        this.playHiHat(t + baseSixteenth * 0.33, 0.028, 0.022);
+        this.playHiHat(t + baseSixteenth * 0.66, 0.032, 0.022);
+      }
+
+      if (step === 0) {
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.48, 0.23);
+      } else if (step === 6) {
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.32, 0.19);
+      } else if (step === 10) {
+        const glideTo = bar === 3 ? rootMidi + 7 : rootMidi;
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(glideTo), 0.38, 0.2);
+      }
+    }
+
+    // ===================== 2. WARM CHORD PADS & RHYTHMIC KEYS =====================
+    if (step === 0) {
+      const barDur = baseSixteenth * 15.5;
+      for (const m of chord) {
+        this.playPadVoice(t, midiToFreq(m), barDur, 0.034);
+      }
+    }
+    // Syncopated chord stab in chorus section for extra richness
+    if (section === 1 && (step === 6 || step === 12) && song.style !== 'afro_reggae') {
+      for (const m of chord) {
+        this.playInstrument(t, midiToFreq(m), 'epiano', 0.24, 0.028, true);
+      }
+    }
+
+    // ===================== 3. SIGNATURE SONG MELODY / HOOK =====================
+    const semi = melody[step];
+    if (semi !== null && semi !== undefined && (section !== 2 || step % 4 === 0)) {
+      const noteMidi = chord[0] + semi;
+      const dur = baseSixteenth * (halfTime ? 2.4 : 2.8);
+      const gain = section === 1 ? 0.078 : 0.064;
+      this.playInstrument(t, midiToFreq(noteMidi), song.leadInstrument, dur, gain, true);
+      // Subtle upper-octave shimmer in full chorus
+      if (section === 1 && step === 0) {
+        this.playInstrument(
+          t,
+          midiToFreq(noteMidi + 12),
+          song.leadInstrument,
+          dur * 1.1,
+          0.024,
+          true
+        );
+      }
+    }
+  }
+
+  private playAfroKick(t: number, vol: number): void {
+    if (!this.ctx || !this.musicBus) return;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(148, t);
+    osc.frequency.exponentialRampToValueAtTime(42, t + 0.095);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.connect(g);
+    g.connect(this.musicBus);
+    osc.start(t);
+    osc.stop(t + 0.17);
+  }
+
+  private playLogDrum(t: number, freq: number, dur: number, vol: number): void {
+    if (!this.ctx || !this.musicBus) return;
+    // Deep sub + woody harmonic knock (classic Afrobeats / Amapiano log drum)
+    const sub = this.ctx.createOscillator();
+    const knock = this.ctx.createOscillator();
+    const flt = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(freq * 1.75, t);
+    sub.frequency.exponentialRampToValueAtTime(freq, t + 0.042);
+
+    knock.type = 'triangle';
+    knock.frequency.setValueAtTime(freq * 3.0, t);
+    knock.frequency.exponentialRampToValueAtTime(freq * 2.0, t + 0.03);
+
+    const knockGain = this.ctx.createGain();
+    knockGain.gain.setValueAtTime(vol * 0.42, t);
+    knockGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.075);
+
+    flt.type = 'lowpass';
+    flt.frequency.setValueAtTime(520, t);
+    flt.frequency.exponentialRampToValueAtTime(160, t + dur);
+
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    sub.connect(flt);
+    knock.connect(knockGain);
+    knockGain.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+
+    sub.start(t);
+    knock.start(t);
+    sub.stop(t + dur + 0.02);
+    knock.stop(t + 0.09);
+  }
+
+  private playDrill808(
+    t: number,
+    startFreq: number,
+    endFreq: number,
+    dur: number,
+    vol: number
+  ): void {
+    if (!this.ctx || !this.musicBus) return;
+    const osc = this.ctx.createOscillator();
+    const harm = this.ctx.createOscillator();
+    const flt = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+
+    osc.type = 'sine';
+    harm.type = 'sawtooth';
+
+    osc.frequency.setValueAtTime(startFreq * 1.35, t);
+    osc.frequency.exponentialRampToValueAtTime(startFreq, t + 0.025);
+    if (Math.abs(endFreq - startFreq) > 1) {
+      osc.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.68);
+    }
+
+    harm.frequency.setValueAtTime(startFreq, t);
+    if (Math.abs(endFreq - startFreq) > 1) {
+      harm.frequency.exponentialRampToValueAtTime(endFreq, t + dur * 0.68);
+    }
+
+    const harmGain = this.ctx.createGain();
+    harmGain.gain.value = 0.24;
+
+    flt.type = 'lowpass';
+    flt.frequency.setValueAtTime(280, t);
+    flt.frequency.exponentialRampToValueAtTime(125, t + dur);
+
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+
+    osc.connect(g);
+    harm.connect(harmGain);
+    harmGain.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+
+    osc.start(t);
+    harm.start(t);
+    osc.stop(t + dur + 0.02);
+    harm.stop(t + dur + 0.02);
+  }
+
+  private playRimshot(t: number, vol: number, pitch = 860): void {
+    if (!this.ctx || !this.musicBus || !this.noiseBuffer) return;
+    // Woody Afrobeats / dancehall rim click
+    const osc = this.ctx.createOscillator();
+    const og = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(pitch, t);
+    osc.frequency.exponentialRampToValueAtTime(pitch * 0.58, t + 0.028);
+    og.gain.setValueAtTime(vol, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.042);
+    osc.connect(og);
+    og.connect(this.musicBus);
+    osc.start(t);
+    osc.stop(t + 0.048);
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2200;
+    bp.Q.value = 3.2;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(vol * 0.55, t);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.032);
+    src.connect(bp);
+    bp.connect(ng);
+    ng.connect(this.musicBus);
+    src.start(t);
+    src.stop(t + 0.038);
+  }
+
+  private playShaker(t: number, vol: number): void {
+    if (!this.ctx || !this.musicBus || !this.noiseBuffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 5400;
+    bp.Q.value = 2.0;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.042);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.musicBus);
+    src.start(t);
+    src.stop(t + 0.048);
+  }
+
+  private playTrapSnare(t: number, vol: number): void {
+    if (!this.ctx || !this.musicBus || !this.noiseBuffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const flt = this.ctx.createBiquadFilter();
+    flt.type = 'highpass';
+    flt.frequency.value = 1150;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.115);
+    src.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+    src.start(t);
+    src.stop(t + 0.125);
+
+    const body = this.ctx.createOscillator();
+    const bg = this.ctx.createGain();
+    body.type = 'triangle';
+    body.frequency.setValueAtTime(220, t);
+    body.frequency.exponentialRampToValueAtTime(130, t + 0.045);
+    bg.gain.setValueAtTime(vol * 0.55, t);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.055);
+    body.connect(bg);
+    bg.connect(this.musicBus);
+    body.start(t);
+    body.stop(t + 0.06);
+  }
+
+  private playHiHat(t: number, vol: number, dur = 0.036): void {
+    if (!this.ctx || !this.musicBus || !this.noiseBuffer) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const flt = this.ctx.createBiquadFilter();
+    flt.type = 'highpass';
+    flt.frequency.value = 7200;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+    src.start(t);
+    src.stop(t + dur + 0.008);
+  }
+
+  private playPadVoice(t: number, freq: number, dur: number, vol: number): void {
+    if (!this.ctx || !this.musicBus) return;
+    const osc = this.ctx.createOscillator();
+    const flt = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+    flt.type = 'lowpass';
+    flt.frequency.setValueAtTime(920, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + Math.min(0.18, dur * 0.2));
+    g.gain.setValueAtTime(vol * 0.85, t + dur * 0.72);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+    osc.start(t);
+    osc.stop(t + dur + 0.03);
+  }
+
+  private playInstrument(
+    t: number,
+    freq: number,
+    inst: LeadInstrument,
+    dur: number,
+    vol: number,
+    sendEcho: boolean
+  ): void {
+    if (!this.ctx || !this.musicBus) return;
+    const osc = this.ctx.createOscillator();
+    const flt = this.ctx.createBiquadFilter();
+    const g = this.ctx.createGain();
+    flt.type = 'lowpass';
+
+    let attack = 0.008;
+    let release = dur;
+
+    if (inst === 'guitar') {
+      // Bright Ghanaian highlife electric guitar pluck
+      osc.type = 'sawtooth';
+      flt.frequency.setValueAtTime(2800, t);
+      flt.frequency.exponentialRampToValueAtTime(680, t + Math.min(0.22, dur));
+      flt.Q.value = 1.6;
+      attack = 0.004;
+      release = Math.min(dur, 0.34);
+    } else if (inst === 'marimba') {
+      // Woody Afro-fusion kalimba / marimba mallet
+      osc.type = 'sine';
+      flt.frequency.setValueAtTime(2400, t);
+      attack = 0.003;
+      release = Math.min(dur, 0.28);
+      const overtone = this.ctx.createOscillator();
+      const og = this.ctx.createGain();
+      overtone.type = 'triangle';
+      overtone.frequency.setValueAtTime(freq * 3, t);
+      og.gain.setValueAtTime(vol * 0.25, t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      overtone.connect(og);
+      og.connect(this.musicBus);
+      overtone.start(t);
+      overtone.stop(t + 0.055);
+    } else if (inst === 'epiano') {
+      // Warm Fender Rhodes electric piano
+      osc.type = 'triangle';
+      flt.frequency.setValueAtTime(1950, t);
+      flt.frequency.exponentialRampToValueAtTime(820, t + dur);
+      attack = 0.01;
+      release = dur * 1.15;
+    } else if (inst === 'brass') {
+      // Warm Afrobeats / reggae horn & anthem synth brass
+      osc.type = 'sawtooth';
+      flt.frequency.setValueAtTime(620, t);
+      flt.frequency.linearRampToValueAtTime(2150, t + 0.045);
+      flt.frequency.exponentialRampToValueAtTime(950, t + dur);
+      attack = 0.018;
+      release = dur * 1.05;
+    } else if (inst === 'dark_bell') {
+      // Moody Tema hip-hop / GH trap bell (Grind Day, Yedin)
+      osc.type = 'sine';
+      flt.frequency.setValueAtTime(3200, t);
+      attack = 0.004;
+      release = dur * 1.25;
+      const bellHarm = this.ctx.createOscillator();
+      const bg = this.ctx.createGain();
+      bellHarm.type = 'sine';
+      bellHarm.frequency.setValueAtTime(freq * 2.0, t);
+      bg.gain.setValueAtTime(vol * 0.36, t);
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      bellHarm.connect(bg);
+      bg.connect(this.musicBus);
+      bellHarm.start(t);
+      bellHarm.stop(t + 0.15);
+    } else if (inst === 'synth_lead') {
+      // Bouncy dancehall synth hook (Putuu)
+      osc.type = 'square';
+      flt.frequency.setValueAtTime(2100, t);
+      flt.frequency.exponentialRampToValueAtTime(750, t + dur);
+      vol *= 0.68;
+      attack = 0.006;
+    } else {
+      // Atmospheric drill/trap pluck (Scatter, Dis Side)
+      osc.type = 'triangle';
+      flt.frequency.setValueAtTime(2600, t);
+      flt.frequency.exponentialRampToValueAtTime(640, t + dur);
+      attack = 0.004;
+    }
+
+    osc.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + release);
+
+    osc.connect(flt);
+    flt.connect(g);
+    g.connect(this.musicBus);
+    if (sendEcho && this.delaySend) {
+      g.connect(this.delaySend);
+    }
+    osc.start(t);
+    osc.stop(t + release + 0.025);
+  }
+
+  // ===================== VEHICLE ENGINE, DRIFT & LSPD SIREN SFX =====================
   public updateVehicleAudio(
     inVehicle: boolean,
     kind: VehicleKind | null,
@@ -160,11 +1118,11 @@ export class AudioEngine {
 
     if (inVehicle && kind) {
       const clamped = Math.min(1.2, Math.abs(speedRatio));
-      // Simulated 5-speed transmission sawtooth RPM curve
       const gearProgress = (clamped * 4.2) % 1;
-      const rpm = kind === 'helicopter'
-        ? 0.45 + clamped * 0.55
-        : 0.25 + gearProgress * 0.52 + clamped * 0.35 + Math.abs(throttle) * 0.12;
+      const rpm =
+        kind === 'helicopter'
+          ? 0.45 + clamped * 0.55
+          : 0.25 + gearProgress * 0.52 + clamped * 0.35 + Math.abs(throttle) * 0.12;
 
       let baseFreq = 48;
       let harmonic = 2.0;
@@ -193,25 +1151,16 @@ export class AudioEngine {
       const targetGain = 0.065 + Math.abs(throttle) * 0.045 + clamped * 0.03;
       this.engineGain.gain.setTargetAtTime(targetGain, now, 0.06);
 
-      // Tire screech
       if (this.screechGain && this.screechFilter) {
         const sGain = kind === 'helicopter' ? 0 : Math.min(0.11, driftIntensity * 0.1);
         this.screechGain.gain.setTargetAtTime(sGain, now, 0.04);
         this.screechFilter.frequency.setTargetAtTime(1250 + driftIntensity * 450, now, 0.05);
       }
-
-      // Radio sequencing
-      this.radioActive = this.currentStation !== 'off';
-      if (this.radioActive) {
-        this.tickRadio(dt);
-      }
     } else {
       this.engineGain.gain.setTargetAtTime(0, now, 0.08);
       this.screechGain?.gain.setTargetAtTime(0, now, 0.05);
-      this.radioActive = false;
     }
 
-    // Siren wail
     if (this.sirenOsc && this.sirenGain) {
       if (sirenIntensity > 0.02) {
         this.sirenPhase += dt * 2.1;
@@ -224,160 +1173,7 @@ export class AudioEngine {
     }
   }
 
-  private tickRadio(dt: number): void {
-    const station = RADIO_STATIONS.find((s) => s.id === this.currentStation);
-    if (!station || station.bpm <= 0 || !this.ctx || !this.musicGain) return;
-
-    const sixteenth = 60 / station.bpm / 4;
-    this.stepTimer += dt;
-    if (this.stepTimer < sixteenth) return;
-    this.stepTimer -= sixteenth;
-
-    const step = this.stepIndex % 16;
-    const bar = Math.floor(this.stepIndex / 16) % 4;
-    this.stepIndex++;
-
-    const t = this.ctx.currentTime;
-
-    if (this.currentStation === 'west_coast') {
-      // Classic Los Santos G-Funk groove (94 BPM, A minor / F / G)
-      if (step === 0 || step === 7 || step === 10) this.playDrumKick(t, 0.14);
-      if (step === 4 || step === 12) this.playDrumSnare(t, 0.09);
-      if (step % 2 === 0) this.playHiHat(t, 0.025);
-
-      const bassNotes = [
-        [55, 0, 0, 55, 0, 0, 65.4, 0, 73.4, 0, 65.4, 0, 0, 49, 0, 0],
-        [43.65, 0, 0, 43.65, 0, 0, 55, 0, 65.4, 0, 0, 0, 49, 0, 51.9, 0],
-      ][bar % 2];
-      if (bassNotes[step]) this.playRadioNote(t, bassNotes[step], 'sawtooth', 0.22, 0.11, 320);
-
-      // Iconic high West Coast sine whine on key beats
-      const whine: Record<number, number> = bar % 2 === 0
-        ? { 0: 880, 6: 784, 10: 659.25, 14: 784 }
-        : { 2: 698.46, 8: 659.25, 12: 587.33 };
-      if (whine[step]) this.playRadioNote(t, whine[step], 'sine', 0.36, 0.045, 2400);
-    } else if (this.currentStation === 'mirror_park') {
-      // Dreamy Los Santos synthwave (112 BPM)
-      if (step % 4 === 0) this.playDrumKick(t, 0.12);
-      if (step === 4 || step === 12) this.playDrumSnare(t, 0.075);
-      if (step % 2 === 1) this.playHiHat(t, 0.022);
-
-      const roots = [65.41, 49.0, 55.0, 43.65]; // C, G, Am, F
-      const root = roots[bar];
-      if (step % 2 === 0) {
-        this.playRadioNote(t, root, 'sawtooth', 0.16, 0.085, 380);
-      }
-      const arpRatios = [4, 5, 6, 8, 6, 5, 4, 3];
-      const freq = root * arpRatios[step % 8];
-      this.playRadioNote(t, freq, 'triangle', 0.2, 0.048, 1800);
-    } else if (this.currentStation === 'non_stop_pop') {
-      // Upbeat dance-pop (124 BPM)
-      if (step % 4 === 0) this.playDrumKick(t, 0.14);
-      if (step === 4 || step === 12) this.playDrumSnare(t, 0.085);
-      if (step % 4 === 2) this.playHiHat(t, 0.035);
-
-      const chords = [
-        [261.6, 329.6, 392.0],
-        [293.7, 370.0, 440.0],
-        [246.9, 311.1, 370.0],
-        [220.0, 261.6, 329.6],
-      ][bar];
-      if (step === 0 || step === 3 || step === 6 || step === 10 || step === 14) {
-        for (const f of chords) {
-          this.playRadioNote(t, f, 'triangle', 0.15, 0.032, 1900);
-        }
-        this.playRadioNote(t, chords[0] * 0.25, 'sawtooth', 0.16, 0.085, 340);
-      }
-    } else if (this.currentStation === 'ls_rock') {
-      // Driving California rock (118 BPM)
-      if (step === 0 || step === 6 || step === 8 || step === 14) this.playDrumKick(t, 0.13);
-      if (step === 4 || step === 12) this.playDrumSnare(t, 0.1);
-      if (step % 2 === 0) this.playHiHat(t, 0.03);
-
-      const roots = [82.41, 110.0, 146.83, 110.0]; // E, A, D, A
-      const r = roots[bar];
-      if (step % 2 === 0) {
-        this.playRadioNote(t, r, 'sawtooth', 0.14, 0.075, 780);
-        this.playRadioNote(t, r * 1.5, 'sawtooth', 0.14, 0.055, 1100);
-      }
-    }
-  }
-
-  private playRadioNote(
-    t: number,
-    freq: number,
-    type: OscillatorType,
-    dur: number,
-    vol: number,
-    cutoff: number
-  ): void {
-    if (!this.ctx || !this.musicGain) return;
-    const osc = this.ctx.createOscillator();
-    const flt = this.ctx.createBiquadFilter();
-    const g = this.ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t);
-    flt.type = 'lowpass';
-    flt.frequency.setValueAtTime(cutoff, t);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    osc.connect(flt);
-    flt.connect(g);
-    g.connect(this.musicGain);
-    osc.start(t);
-    osc.stop(t + dur + 0.02);
-  }
-
-  private playDrumKick(t: number, vol: number): void {
-    if (!this.ctx || !this.musicGain) return;
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(135, t);
-    osc.frequency.exponentialRampToValueAtTime(38, t + 0.11);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
-    osc.connect(g);
-    g.connect(this.musicGain);
-    osc.start(t);
-    osc.stop(t + 0.15);
-  }
-
-  private playDrumSnare(t: number, vol: number): void {
-    if (!this.ctx || !this.musicGain || !this.noiseBuffer) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.noiseBuffer;
-    const flt = this.ctx.createBiquadFilter();
-    flt.type = 'highpass';
-    flt.frequency.value = 950;
-    const g = this.ctx.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
-    src.connect(flt);
-    flt.connect(g);
-    g.connect(this.musicGain);
-    src.start(t);
-    src.stop(t + 0.11);
-  }
-
-  private playHiHat(t: number, vol: number): void {
-    if (!this.ctx || !this.musicGain || !this.noiseBuffer) return;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.noiseBuffer;
-    const flt = this.ctx.createBiquadFilter();
-    flt.type = 'highpass';
-    flt.frequency.value = 6200;
-    const g = this.ctx.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    src.connect(flt);
-    flt.connect(g);
-    g.connect(this.musicGain);
-    src.start(t);
-    src.stop(t + 0.045);
-  }
-
+  // ===================== COMBAT, WORLD & UI SFX =====================
   public playWeaponSound(weapon: WeaponId): void {
     if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
     const t = this.ctx.currentTime;
@@ -414,7 +1210,6 @@ export class AudioEngine {
       return;
     }
 
-    // Gunshot noise burst + low punch
     const src = this.ctx.createBufferSource();
     src.buffer = this.noiseBuffer;
     const flt = this.ctx.createBiquadFilter();
@@ -562,7 +1357,6 @@ export class AudioEngine {
   }
 
   public playSwitchPulse(): void {
-    // Iconic GTA V satellite zoom camera-flash thump
     if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
     const t = this.ctx.currentTime;
     const osc = this.ctx.createOscillator();

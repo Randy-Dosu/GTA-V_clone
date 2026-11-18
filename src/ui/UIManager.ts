@@ -3,6 +3,7 @@ import {
   CHARACTER_PROFILES,
   GameMode,
   GameSettings,
+  RadioStation,
   RADIO_STATIONS,
   RadioStationId,
   TimePreset,
@@ -10,6 +11,7 @@ import {
   WEAPON_SPECS,
   WeaponId,
 } from '../types';
+import { SoundtrackSong } from '../audio/SoundtrackData';
 import { LANDMARKS, getDistrictAndStreet } from '../world/WorldData';
 import { Player } from '../entities/Player';
 import { PoliceSystem } from '../gameplay/PoliceSystem';
@@ -100,7 +102,14 @@ export class UIManager {
   private phoneClockEl: HTMLElement;
   private phoneScreenEl: HTMLElement;
   public phoneOpen = false;
-  private phoneView: 'home' | 'mechanic' | 'gps' | 'contacts' | 'sky' = 'home';
+  private phoneView: 'home' | 'music' | 'mechanic' | 'gps' | 'contacts' | 'sky' = 'home';
+
+  private nowPlayingEl: HTMLElement;
+  private npDotEl: HTMLElement;
+  private npStationEl: HTMLElement;
+  private npTitleEl: HTMLElement;
+  private npArtistEl: HTMLElement;
+  private musicFileInput: HTMLInputElement;
 
   private shopDrawer: HTMLElement;
   private shopTitle: HTMLElement;
@@ -112,6 +121,7 @@ export class UIManager {
 
   // Timers & state
   private toastTimer = 0;
+  private nowPlayingTimer = 0;
   private lastDistrict = '';
   private lastVehicleId = -1;
   private bannerTimer = 0;
@@ -124,13 +134,13 @@ export class UIManager {
   public weaponWheelOpen = false;
   public hoveredWeapon: WeaponId = 'unarmed';
   public radioWheelOpen = false;
-  public hoveredStation: RadioStationId = 'west_coast';
+  public hoveredStation: RadioStationId = 'gold_coast';
   public charWheelOpen = false;
   public hoveredChar: CharacterId = 'franklin';
 
-  private activePauseTab: 'map' | 'missions' | 'controls' | 'settings' = 'map';
+  private activePauseTab: 'map' | 'missions' | 'radio' | 'controls' | 'settings' = 'map';
   private controlsSubTab: 'keyboard' | 'gamepad' = 'keyboard';
-  private titleFocusIdx = 2; // defaults to STORY MODE
+  private titleFocusIdx = 3; // defaults to STORY MODE
   private phoneFocusIdx = 0;
   private shopFocusIdx = 0;
   private pauseFocusIdx = -1;
@@ -188,6 +198,13 @@ export class UIManager {
     this.toastStreet = $('toast-street');
     this.toastDistrict = $('toast-district');
 
+    this.nowPlayingEl = $('now-playing');
+    this.npDotEl = $('np-dot');
+    this.npStationEl = $('np-station');
+    this.npTitleEl = $('np-title');
+    this.npArtistEl = $('np-artist');
+    this.musicFileInput = $('music-file-input') as HTMLInputElement;
+
     this.bigBanner = $('big-banner');
     this.bannerTitle = $('banner-title');
     this.bannerSub = $('banner-sub');
@@ -222,6 +239,15 @@ export class UIManager {
       this.audio.unlock();
       this.audio.playUiClick(740);
       this.callbacks.onStartGame();
+    });
+
+    document.getElementById('btn-title-radio')!.addEventListener('click', () => {
+      this.audio.unlock();
+      this.audio.playUiClick();
+      this.titleModalHeading.textContent = 'RADIO';
+      this.mountRadioDOM(this.titleModalBody);
+      this.titleModal.classList.remove('hidden');
+      this.pauseFocusIdx = 0;
     });
 
     document.getElementById('btn-title-controls')!.addEventListener('click', () => {
@@ -293,10 +319,33 @@ export class UIManager {
       this.audio.playUiClick();
       this.callbacks.onCloseShop();
     });
+
+    // Local MP3 / M4A / WAV soundtrack file importer
+    this.musicFileInput.addEventListener('change', () => {
+      const files = this.musicFileInput.files;
+      if (files && files.length > 0) {
+        const res = this.audio.importLocalAudioFiles(files);
+        this.refreshRadioPanels();
+        if (this.phoneOpen && this.phoneView === 'music') {
+          this.renderPhoneScreen();
+        }
+        if (res.total > 0 && res.firstSong) {
+          this.showHelpToast(
+            `Loaded <b>${res.total}</b> audio track${res.total > 1 ? 's' : ''} — playing <b>${res.firstSong.artist} — ${res.firstSong.title}</b>.`,
+            4.2
+          );
+        }
+      }
+      this.musicFileInput.value = '';
+    });
+  }
+
+  public openMusicFilePicker(): void {
+    this.musicFileInput.click();
   }
 
   public selectPauseTab(tab: string): void {
-    this.activePauseTab = tab as 'map' | 'missions' | 'controls' | 'settings';
+    this.activePauseTab = tab as 'map' | 'missions' | 'radio' | 'controls' | 'settings';
     this.pauseFocusIdx = tab === 'map' ? -1 : 0;
     document.querySelectorAll('.pause-tab[data-tab]').forEach((b) => {
       b.classList.toggle('active', (b as HTMLElement).dataset.tab === tab);
@@ -304,7 +353,9 @@ export class UIManager {
     document.querySelectorAll('.pause-panel').forEach((p) => {
       p.classList.toggle('active', p.id === `tab-${tab}`);
     });
-    if (tab === 'controls') {
+    if (tab === 'radio') {
+      this.refreshRadioPanels();
+    } else if (tab === 'controls') {
       this.refreshControlsPanels();
     } else if (tab === 'settings') {
       const setHost = document.getElementById('pause-settings-content')!;
@@ -312,6 +363,161 @@ export class UIManager {
       setHost.appendChild(this.buildSettingsDOM());
       if (this.gamepad.usingGamepad) this.applyFocusList(setHost, '.setting-row', this.pauseFocusIdx);
     }
+  }
+
+  public refreshRadioPanels(): void {
+    const pauseHost = document.getElementById('pause-radio-content');
+    if (pauseHost && this.activePauseTab === 'radio') {
+      this.mountRadioDOM(pauseHost);
+      if (this.gamepad.usingGamepad) {
+        this.applyFocusList(pauseHost, '[data-radio-nav]', this.pauseFocusIdx);
+      }
+    }
+    if (
+      !this.titleModal.classList.contains('hidden') &&
+      this.titleModalHeading.textContent === 'RADIO'
+    ) {
+      this.mountRadioDOM(this.titleModalBody);
+      if (this.gamepad.usingGamepad) {
+        this.applyFocusList(this.titleModalBody, '[data-radio-nav]', this.pauseFocusIdx);
+      }
+    }
+    if (this.radioWheelOpen) {
+      this.refreshRadioWheelVisuals();
+    }
+    if (this.phoneOpen && this.phoneView === 'music') {
+      this.renderPhoneScreen();
+    }
+  }
+
+  private mountRadioDOM(container: HTMLElement): void {
+    container.innerHTML = '';
+    const deck = document.createElement('div');
+    deck.className = 'radio-deck';
+
+    const st = this.audio.getStation();
+    const song = this.audio.getCurrentSong();
+    const mp3Count = this.audio.getRealAudioCount();
+
+    // 1. Live Now Playing bar + Transport + Import MP3
+    const nowCard = document.createElement('div');
+    nowCard.className = 'radio-now-card';
+    nowCard.style.setProperty('--st-color', st.color);
+
+    const meta = document.createElement('div');
+    meta.className = 'radio-now-meta';
+    meta.innerHTML = `
+      <div class="radio-now-station">${st.name}${st.host ? ` &bull; ${st.host}` : ''}</div>
+      <div class="radio-now-title">${
+        song ? `${song.artist} &mdash; ${song.title}` : 'Soundtrack Muted (Radio Off)'
+      }</div>
+      <div class="radio-now-sub">${
+        song
+          ? `${song.album} (${song.year}) &bull; ${song.bpm} BPM &bull; ${
+              song.audioUrl ? 'Original Audio Streaming' : 'In-Game Instrumental Riddim'
+            }`
+          : 'Select any station or song below to resume the soundtrack'
+      }</div>
+    `;
+
+    const transport = document.createElement('div');
+    transport.className = 'radio-transport';
+
+    const mkBtn = (label: string, extraCls: string, onClick: () => void) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = `radio-ctrl-btn ${extraCls}`.trim();
+      b.dataset.radioNav = '1';
+      b.textContent = label;
+      b.addEventListener('click', () => {
+        this.audio.unlock();
+        this.audio.playUiClick(620);
+        onClick();
+      });
+      return b;
+    };
+
+    transport.append(
+      mkBtn('Prev', '', () => {
+        this.audio.nextTrack(-1, true);
+        this.mountRadioDOM(container);
+      }),
+      mkBtn(this.audio.isMusicPaused ? 'Play' : 'Pause', '', () => {
+        this.audio.toggleMusicPause();
+        this.mountRadioDOM(container);
+      }),
+      mkBtn('Next', '', () => {
+        this.audio.nextTrack(1, true);
+        this.mountRadioDOM(container);
+      }),
+      mkBtn(
+        mp3Count > 0 ? `+ Import MP3s (${mp3Count})` : '+ Import MP3s',
+        'import-btn',
+        () => this.openMusicFilePicker()
+      )
+    );
+
+    nowCard.append(meta, transport);
+    deck.appendChild(nowCard);
+
+    // 2. Station Pills (Gold Coast FM, BHIM Nation, Scatter Der, Ground Up, Off)
+    const strip = document.createElement('div');
+    strip.className = 'radio-station-strip';
+    for (const s of RADIO_STATIONS) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = `radio-st-pill ${s.id === st.id ? 'active' : ''}`;
+      pill.dataset.radioNav = '1';
+      pill.style.setProperty('--st-color', s.color);
+      pill.textContent = s.name;
+      pill.addEventListener('click', () => {
+        this.audio.unlock();
+        this.audio.playUiClick(640);
+        this.audio.setStation(s.id, true);
+        this.mountRadioDOM(container);
+      });
+      strip.appendChild(pill);
+    }
+    deck.appendChild(strip);
+
+    // 3. Tracklist for active station (or full catalog when Off)
+    const tracks =
+      st.id === 'off' ? this.audio.getStationTracks('gold_coast') : this.audio.getStationTracks(st.id);
+    const list = document.createElement('div');
+    list.className = 'radio-tracklist';
+    for (const tr of tracks) {
+      const isPlaying = !!song && song.id === tr.id && st.id !== 'off' && !this.audio.isMusicPaused;
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = `radio-track-btn ${isPlaying ? 'playing' : ''}`;
+      row.dataset.radioNav = '1';
+      const badgeCls = isPlaying ? 'live' : tr.audioUrl ? 'mp3' : '';
+      const badgeTxt = isPlaying ? 'PLAYING' : tr.audioUrl ? 'AUDIO' : `${tr.bpm} BPM`;
+      row.innerHTML = `
+        <span class="rt-info">
+          <span class="rt-title">${tr.title}</span>
+          <span class="rt-artist">${tr.artist} &bull; ${tr.album}</span>
+        </span>
+        <span class="rt-badge ${badgeCls}">${badgeTxt}</span>
+      `;
+      row.addEventListener('click', () => {
+        this.audio.unlock();
+        this.audio.playUiClick(680);
+        const pref = st.id === 'off' ? 'gold_coast' : st.id;
+        this.audio.playSongById(tr.id, pref, true);
+        this.mountRadioDOM(container);
+      });
+      list.appendChild(row);
+    }
+    deck.appendChild(list);
+
+    const note = document.createElement('div');
+    note.className = 'radio-footnote';
+    note.textContent =
+      'Built-in Afro-Dancehall, GH Drill & Afro-Fusion instrumentals play automatically. Click "+ Import MP3s" anytime to stream your own Stonebwoy, Kweku Smoke & Kwesi Arthur audio files (auto-matched by title & artist).';
+    deck.appendChild(note);
+
+    container.appendChild(deck);
   }
 
   public refreshControlsPanels(): void {
@@ -365,7 +571,7 @@ export class UIManager {
           <div class="ctrl-row"><span>Drive / Handbrake</span><span><b class="keycap">WASD</b> / <b class="keycap">SPACE</b></span></div>
           <div class="ctrl-row"><span>Turbo / Horn &amp; Siren</span><span><b class="keycap">SHIFT</b> / <b class="keycap">H</b></span></div>
           <div class="ctrl-row"><span>Chopper Lift / Drop</span><span><b class="keycap">SPACE</b> / <b class="keycap">SHIFT</b></span></div>
-          <div class="ctrl-row"><span>Radio Wheel</span><span>Hold <b class="keycap">Q</b></span></div>
+          <div class="ctrl-row"><span>Radio Wheel / Next Song</span><span>Hold <b class="keycap">Q</b> / <b class="keycap">N</b></span></div>
           <div class="ctrl-row"><span>Character Switch</span><span>Hold <b class="keycap">ALT</b> or <b class="keycap">F1-F3</b></span></div>
           <div class="ctrl-row"><span>Special Ability</span><span><b class="keycap">X</b></span></div>
           <div class="ctrl-row"><span>iFruit Phone / Map</span><span><b class="keycap">P</b> / <b class="keycap">M</b></span></div>
@@ -395,7 +601,7 @@ export class UIManager {
           <div class="ctrl-row"><span>Steer / Handbrake</span><span>${b('ls')} / ${b('rb')} or ${b('south')}</span></div>
           <div class="ctrl-row"><span>Turbo / Horn &amp; Siren</span><span>${b('west')} / ${b('l3')}</span></div>
           <div class="ctrl-row"><span>Chopper Lift / Drop</span><span>${b('rt')} / ${b('lt')}</span></div>
-          <div class="ctrl-row"><span>Radio Wheel</span><span>Hold ${b('dpad_left')} + ${b('rs')}</span></div>
+          <div class="ctrl-row"><span>Radio Wheel / Next Song</span><span>Hold / Tap ${b('dpad_left')}</span></div>
           <div class="ctrl-row"><span>Character Switch</span><span>Hold ${b('dpad_down')} + ${b('rs')}</span></div>
           <div class="ctrl-row"><span>iFruit Phone / Pause</span><span>${b('dpad_up')} / ${b('start')}</span></div>
           <div class="ctrl-row"><span>Camera / Look Back</span><span>${b('select')} / ${b('r3')}</span></div>
@@ -451,8 +657,9 @@ export class UIManager {
     };
 
     addRange('Master Volume', this.settings.masterVolume, 0, 1, 0.05, (v) => (this.settings.masterVolume = v));
-    addRange('Radio Music Volume', this.settings.musicVolume, 0, 1, 0.05, (v) => (this.settings.musicVolume = v));
+    addRange('Soundtrack Volume', this.settings.musicVolume, 0, 1, 0.05, (v) => (this.settings.musicVolume = v));
     addRange('SFX Volume', this.settings.sfxVolume, 0, 1, 0.05, (v) => (this.settings.sfxVolume = v));
+    addCheck('Play Soundtrack On Foot', this.settings.soundtrackOnFoot, (v) => (this.settings.soundtrackOnFoot = v));
     addRange('Mouse Sensitivity', this.settings.mouseSensitivity, 0.3, 2.2, 0.1, (v) => (this.settings.mouseSensitivity = v));
     addRange('Controller Sensitivity', this.settings.gamepadSensitivity, 0.4, 2.4, 0.1, (v) => (this.settings.gamepadSensitivity = v));
     addRange('Controller Deadzone', this.settings.gamepadDeadzone, 0.05, 0.35, 0.02, (v) => (this.settings.gamepadDeadzone = v));
@@ -536,13 +743,6 @@ export class UIManager {
   private buildRadioWheelDOM(): void {
     this.radioSlotsEl.innerHTML = '';
     const R = 138;
-    const shortLabels: Record<RadioStationId, string> = {
-      west_coast: 'WCC',
-      mirror_park: 'RMP',
-      non_stop_pop: 'POP',
-      ls_rock: 'LSRR',
-      off: 'OFF',
-    };
     RADIO_STATIONS.forEach((st, idx) => {
       const ang = (idx / RADIO_STATIONS.length) * Math.PI * 2 - Math.PI * 0.5;
       const x = 195 + Math.cos(ang) * R;
@@ -553,9 +753,19 @@ export class UIManager {
       btn.dataset.station = st.id;
       btn.style.left = `${x}px`;
       btn.style.top = `${y}px`;
+      const meta =
+        st.id === 'gold_coast'
+          ? 'All-Stars'
+          : st.id === 'bhim_fm'
+          ? 'Stonebwoy'
+          : st.id === 'scatter_fm'
+          ? 'Kweku Smoke'
+          : st.id === 'ground_up'
+          ? 'Kwesi Arthur'
+          : 'Mute';
       btn.innerHTML = `
-        <span class="wheel-slot-icon" style="color:${st.color}">${shortLabels[st.id]}</span>
-        <span class="wheel-slot-meta">${st.id === 'off' ? 'Mute' : `${st.bpm} BPM`}</span>
+        <span class="wheel-slot-icon" style="color:${st.color}">${st.shortLabel}</span>
+        <span class="wheel-slot-meta">${meta}</span>
       `;
       btn.addEventListener('mouseenter', () => this.selectWheelStation(st.id));
       btn.addEventListener('click', () => this.selectWheelStation(st.id));
@@ -633,8 +843,20 @@ export class UIManager {
       el.classList.toggle('selected', (el as HTMLElement).dataset.station === this.hoveredStation);
     });
     const st = RADIO_STATIONS.find((s) => s.id === this.hoveredStation)!;
+    const song = this.audio.getCurrentSong(this.hoveredStation);
     document.getElementById('wheel-radio-name')!.textContent = st.name.toUpperCase();
-    document.getElementById('wheel-radio-track')!.textContent = st.track || st.genre;
+    document.getElementById('wheel-radio-track')!.textContent = song
+      ? `${song.artist} — ${song.title}`
+      : st.genre;
+    const hint = document.getElementById('wheel-radio-hint');
+    if (hint) {
+      hint.innerHTML =
+        st.id === 'off'
+          ? ''
+          : this.gamepad.usingGamepad
+          ? `Press ${this.gamepad.badge('rb')} for next song`
+          : 'Press <span class="keycap">N</span> for next song';
+    }
   }
 
   public setMode(mode: GameMode, player: Player, missions: MissionSystem, minimap: Minimap, timeOfDay: number): void {
@@ -670,6 +892,7 @@ export class UIManager {
       minimap.resetMapCursor(player.pos.x, player.pos.z);
       minimap.renderFullPauseMap(player, missions);
       this.renderMissionsTab(missions);
+      this.refreshRadioPanels();
       this.refreshControlsPanels();
     }
 
@@ -891,6 +1114,15 @@ export class UIManager {
       grid.className = 'phone-grid';
       const apps: Array<{ label: string; badge: string; color: string; action: () => void }> = [
         {
+          label: 'iFruit Music',
+          badge: 'GH',
+          color: '#fbbf24',
+          action: () => {
+            this.phoneView = 'music';
+            this.renderPhoneScreen();
+          },
+        },
+        {
           label: 'Mechanic',
           badge: 'CAR',
           color: '#facc15',
@@ -958,6 +1190,68 @@ export class UIManager {
         grid.appendChild(b);
       }
       this.phoneScreenEl.appendChild(grid);
+      return;
+    }
+
+    if (this.phoneView === 'music') {
+      addBack('iFruit Music');
+      const st = this.audio.getStation();
+      const cur = this.audio.getCurrentSong();
+
+      const nowBox = document.createElement('div');
+      nowBox.className = 'phone-music-now';
+      nowBox.style.borderLeftColor = st.color;
+      nowBox.innerHTML = `
+        <div class="phone-music-title">${cur ? cur.title : 'Radio Off'}</div>
+        <div class="phone-music-sub">${cur ? `${cur.artist} • ${st.name}` : 'Pick a station or hit'}</div>
+      `;
+      this.phoneScreenEl.appendChild(nowBox);
+
+      const addPhoneAction = (label: string, right: string, fn: () => void) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'phone-list-btn';
+        b.innerHTML = `<span>${label}</span><small>${right}</small>`;
+        b.addEventListener('click', () => {
+          this.audio.unlock();
+          this.audio.playUiClick(620);
+          fn();
+        });
+        this.phoneScreenEl.appendChild(b);
+      };
+
+      addPhoneAction('Next Track', 'SKIP', () => {
+        this.audio.nextTrack(1, true);
+        this.renderPhoneScreen();
+      });
+      addPhoneAction('Switch Station', st.shortLabel, () => {
+        const idx = RADIO_STATIONS.findIndex((x) => x.id === st.id);
+        const nxt = RADIO_STATIONS[(idx + 1) % RADIO_STATIONS.length];
+        this.audio.setStation(nxt.id, true);
+        this.renderPhoneScreen();
+      });
+      addPhoneAction('Import MP3 Files', '+AUDIO', () => {
+        this.openMusicFilePicker();
+      });
+
+      const list =
+        st.id === 'off' ? this.audio.getStationTracks('gold_coast') : this.audio.getStationTracks(st.id);
+      for (const s of list) {
+        const active = cur && cur.id === s.id && st.id !== 'off';
+        const shortArtist =
+          s.artist === 'Stonebwoy'
+            ? 'BHIM'
+            : s.artist === 'Kweku Smoke'
+            ? 'SMOKE'
+            : s.artist === 'Kwesi Arthur'
+            ? 'KWESI'
+            : 'MP3';
+        addPhoneAction(s.title, active ? 'LIVE' : shortArtist, () => {
+          const pref = st.id === 'off' ? 'gold_coast' : st.id;
+          this.audio.playSongById(s.id, pref, true);
+          this.renderPhoneScreen();
+        });
+      }
       return;
     }
 
@@ -1133,6 +1427,31 @@ export class UIManager {
     }
   }
 
+  private navigateRadioDeckGamepad(host: HTMLElement): void {
+    const gp = this.gamepad;
+    const items = this.applyFocusList(
+      host,
+      '[data-radio-nav]',
+      gp.usingGamepad ? this.pauseFocusIdx : -1
+    );
+    if (items.length === 0) return;
+    this.pauseFocusIdx = Math.max(0, Math.min(items.length - 1, this.pauseFocusIdx));
+    if (gp.navDown || gp.navRight) {
+      this.pauseFocusIdx = (this.pauseFocusIdx + 1) % items.length;
+      this.audio.playUiClick(540);
+      this.applyFocusList(host, '[data-radio-nav]', this.pauseFocusIdx);
+    } else if (gp.navUp || gp.navLeft) {
+      this.pauseFocusIdx = (this.pauseFocusIdx - 1 + items.length) % items.length;
+      this.audio.playUiClick(540);
+      this.applyFocusList(host, '[data-radio-nav]', this.pauseFocusIdx);
+    } else if (gp.wasPressed(GP.SOUTH)) {
+      const idx = this.pauseFocusIdx;
+      items[idx]?.click();
+      this.pauseFocusIdx = idx;
+      this.applyFocusList(host, '[data-radio-nav]', this.pauseFocusIdx);
+    }
+  }
+
   public handleTitleGamepad(): void {
     const gp = this.gamepad;
     if (!gp.connected) return;
@@ -1144,7 +1463,9 @@ export class UIManager {
         this.titleModal.classList.add('hidden');
         return;
       }
-      if (this.titleModalHeading.textContent === 'CONTROLS') {
+      if (this.titleModalHeading.textContent === 'RADIO') {
+        this.navigateRadioDeckGamepad(this.titleModalBody);
+      } else if (this.titleModalHeading.textContent === 'CONTROLS') {
         if (gp.navLeft || gp.navRight || gp.wasPressed(GP.LB) || gp.wasPressed(GP.RB)) {
           this.audio.playUiClick();
           this.controlsSubTab = this.controlsSubTab === 'gamepad' ? 'keyboard' : 'gamepad';
@@ -1305,9 +1626,10 @@ export class UIManager {
     }
 
     // LB / RB switch GTA V pause header tabs cleanly
-    const tabOrder: Array<'map' | 'missions' | 'controls' | 'settings'> = [
+    const tabOrder: Array<'map' | 'missions' | 'radio' | 'controls' | 'settings'> = [
       'map',
       'missions',
+      'radio',
       'controls',
       'settings',
     ];
@@ -1395,6 +1717,9 @@ export class UIManager {
           btns[this.pauseFocusIdx]?.click();
         }
       }
+    } else if (this.activePauseTab === 'radio') {
+      const rRoot = document.getElementById('pause-radio-content')!;
+      this.navigateRadioDeckGamepad(rRoot);
     } else if (this.activePauseTab === 'controls') {
       if (gp.navLeft || gp.navRight) {
         this.audio.playUiClick(560);
@@ -1464,6 +1789,24 @@ export class UIManager {
       this.flashLayer.style.transition = 'opacity 0.28s ease-out';
       this.flashLayer.style.opacity = '0';
     });
+  }
+
+  public triggerNowPlaying(song: SoundtrackSong | null, station: RadioStation): void {
+    this.refreshRadioPanels();
+    if (!song || station.id === 'off') {
+      this.nowPlayingEl.classList.add('hidden');
+      this.nowPlayingTimer = 0;
+      return;
+    }
+    this.nowPlayingEl.style.borderRightColor = station.color;
+    this.npDotEl.style.background = station.color;
+    this.npDotEl.style.color = station.color;
+    this.npStationEl.textContent = station.name.toUpperCase();
+    this.npTitleEl.textContent = song.title;
+    this.npArtistEl.textContent = song.artist;
+    this.nowPlayingEl.classList.remove('hidden');
+    this.nowPlayingEl.style.opacity = '1';
+    this.nowPlayingTimer = 4.2;
   }
 
   public triggerAreaReadout(vehicleLabel: string, x: number, z: number): void {
@@ -1627,6 +1970,16 @@ export class UIManager {
       }
       if (this.toastTimer <= 0) {
         this.areaToast.classList.add('hidden');
+      }
+    }
+
+    if (this.nowPlayingTimer > 0) {
+      this.nowPlayingTimer -= realDt;
+      if (this.nowPlayingTimer < 0.7) {
+        this.nowPlayingEl.style.opacity = String(Math.max(0, this.nowPlayingTimer / 0.7));
+      }
+      if (this.nowPlayingTimer <= 0) {
+        this.nowPlayingEl.classList.add('hidden');
       }
     }
 

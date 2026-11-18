@@ -1,0 +1,4 @@
+{
+  "note": "Drop licensed .mp3/.m4a/.ogg/.wav files into public/music/ and list them under 'files' below (or import them directly in-game via iFruit Music / Settings) to stream original studio audio.",
+  "files": {}
+}

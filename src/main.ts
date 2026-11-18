@@ -49,8 +49,9 @@ class GTAVGame {
     gamepadDeadzone: 0.14,
     gamepadVibration: true,
     masterVolume: 0.65,
-    musicVolume: 0.45,
+    musicVolume: 0.52,
     sfxVolume: 0.75,
+    soundtrackOnFoot: true,
     invertY: false,
     autoTimeCycle: true,
     showSpeedometer: true,
@@ -99,6 +100,11 @@ class GTAVGame {
 
     this.input = new InputManager(this.canvas);
     this.audio = new AudioEngine();
+    this.audio.onTrackChange = (song, station) => {
+      if (this.ui) {
+        this.ui.triggerNowPlaying(song, station);
+      }
+    };
     this.gamepad = new GamepadManager((connected, label) => {
       if (this.ui) {
         this.ui.refreshControlsPanels();
@@ -253,6 +259,7 @@ class GTAVGame {
     this.setMode('playing', !this.gamepad.usingGamepad);
     this.cameraCtrl.triggerIntroDrop(this.player);
     this.ui.triggerAreaReadout('', this.player.pos.x, this.player.pos.z);
+    this.ui.triggerNowPlaying(this.audio.getCurrentSong(), this.audio.getStation());
     const enterGlyph = this.gamepad.usingGamepad
       ? this.gamepad.badge('north')
       : '<span class="keycap">F</span>';
@@ -694,18 +701,26 @@ class GTAVGame {
     } else {
       this.renderer.render(this.scene, this.cameraCtrl.camera);
     }
+
+    // Continuous Stonebwoy / Kweku Smoke / Kwesi Arthur soundtrack across modes
+    this.audio.updateSoundtrack(
+      this.mode,
+      !!this.player.currentVehicle,
+      this.settings.soundtrackOnFoot,
+      realDt
+    );
+
     this.input.endFrame();
   }
 
   private cycleRadioStation(): void {
     const curIdx = RADIO_STATIONS.findIndex((s) => s.id === this.audio.currentStation);
     const nextSt = RADIO_STATIONS[(curIdx + 1) % RADIO_STATIONS.length];
-    this.audio.currentStation = nextSt.id;
+    this.audio.setStation(nextSt.id, true);
     this.audio.playUiClick(660);
-    this.ui.showHelpToast(
-      nextSt.id === 'off' ? 'Radio Off' : `<b>${nextSt.name}</b> — ${nextSt.track}`,
-      2.4
-    );
+    if (nextSt.id === 'off') {
+      this.ui.showHelpToast('Radio Off', 2.0);
+    }
   }
 
   private updateGameplay(realDt: number, dt: number): string | null {
@@ -777,12 +792,17 @@ class GTAVGame {
       this.audio.playUiClick(560);
     }
 
-    // 3. Radio Station Wheel (Hold Q or Hold D-Pad Left in vehicle; quick-tap D-Pad Left cycles)
-    const inAnyVeh = !!this.player.currentVehicle;
+    // 3. Radio & Soundtrack Wheel (Hold Q or Hold D-Pad Left anytime; N or tap D-Pad Left skips song)
+    const radioEnabledHere = !!this.player.currentVehicle || this.settings.soundtrackOnFoot;
     const gpRadioHold =
-      inAnyVeh && !phoneOpen && gp.isDown(GP.DPAD_LEFT) && gp.getHoldDuration(GP.DPAD_LEFT) > 0.18;
-    const radioWheelWant = (this.input.isDown('KeyQ') && inAnyVeh && !phoneOpen) || gpRadioHold;
+      radioEnabledHere &&
+      !phoneOpen &&
+      gp.isDown(GP.DPAD_LEFT) &&
+      gp.getHoldDuration(GP.DPAD_LEFT) > 0.18;
+    const radioWheelWant =
+      (this.input.isDown('KeyQ') && radioEnabledHere && !phoneOpen) || gpRadioHold;
     if (radioWheelWant && !this.ui.radioWheelOpen) {
+      this.audio.unlock();
       this.input.resetRadialCursor();
       this.ui.setRadioWheel(true);
     } else if (!radioWheelWant && this.ui.radioWheelOpen) {
@@ -794,8 +814,17 @@ class GTAVGame {
       const rdy =
         Math.hypot(gp.rawRightX, gp.rawRightY) > 0.25 ? gp.rawRightY * 150 : this.input.radialDY;
       this.ui.updateRadioWheelCursor(rdx, rdy);
-    } else if (inAnyVeh && !phoneOpen && gp.wasQuickTapped(GP.DPAD_LEFT, 0.18)) {
-      this.cycleRadioStation();
+      if (this.input.wasPressed('KeyN') || gp.wasPressed(GP.RB)) {
+        this.audio.unlock();
+        this.audio.playUiClick(680);
+        this.audio.nextTrack(1, true);
+      }
+    } else if (!phoneOpen) {
+      if (this.input.wasPressed('KeyN') || (radioEnabledHere && gp.wasQuickTapped(GP.DPAD_LEFT, 0.18))) {
+        this.audio.unlock();
+        this.audio.playUiClick(680);
+        this.audio.nextTrack(1, true);
+      }
     }
 
     // 4. Character Switch Diamond (Hold ALT + 1/2/3, F1-F3, or Gamepad Hold D-Pad Down + Right Stick)

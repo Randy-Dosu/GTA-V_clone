@@ -10,7 +10,8 @@ A real-time 3D browser recreation of **Grand Theft Auto V** set in sun-drenched 
 - **Vehicles & Flight**: Drive the Pegassi Zentorno, Bravado Gauntlet, Obey Tailgater, Benefactor Dubsta, LSPD Cruiser, Pegassi Bati 801 sportbike, and fly the Buckingham Maverick helicopter across Los Santos — with handbrake drifting, tire smoke, skid marks, turbo boost, and cinematic Stunt Jumps.
 - **Story Missions, LSPD & Shops**: 4 multi-stage Story Missions (`F`, `S`, `L`, `M`) with street-snapped GPS routing, a 1–5 star LSPD pursuit & evasion system, **Los Santos Customs** (repair, twin-turbo, metallic respray, neon underglow), **Ammu-Nation**, 4 synthesized Los Santos radio stations, and an interactive **iFruit** phone.
 - **Clean GTA V UI**: Minimalist rectangular radar with integrated Health / Armor / Special Ability bars, interactive full-city Pause Map with click-to-set purple GPS waypoints, radial Weapon & Radio wheels, contextual prompts, and ephemeral street/vehicle callouts.
-- **Full Gamepad Support**: Plug-and-play W3C Gamepad API integration for Xbox, PlayStation (DualSense / DualShock), and standard controllers — with analog stick/trigger physics, automatic Xbox/PlayStation HUD button glyphs, `dual-rumble` haptic feedback, radial-wheel stick selection, interactive Pause Map crosshair cursor, full Title/Pause/Phone/Shop navigation, and tunable Sensitivity / Deadzone / Vibration settings.
+- **Ghana All-Stars Soundtrack & Radio**: 15 popular hits across **Stonebwoy**, **Kweku Smoke**, and **Kwesi Arthur** organized into 4 stations — **Gold Coast FM** (All-Stars Mix), **BHIM Nation 101.9** (*Jejereje*, *Into the Future*, *Therapy*, *Putuu*, *Bawasaba*), **Scatter Der 96.5** (*Holy Ghost*, *Yedin*, *Scatter*, *Young Boy*, *Dis Side*), and **Ground Up 99.7** (*Grind Day*, *Baajo*, *Winning*, *Celebrate*, *Nobody*). Plays out of the box with tempo- and genre-matched Afro-Dancehall, Highlife, Asakaa/GH Drill (sliding 808s), and Afro-Fusion Web Audio instrumentals — plus one-click **`+ Import MP3s`** (via Title **Radio**, Pause **Radio**, or **iFruit Music**) and `public/music/manifest.json` support to stream your own studio audio files.
+- **Full Gamepad Support**: Plug-and-play W3C Gamepad API integration for Xbox, PlayStation (DualSense / DualShock), and standard controllers — with analog stick/trigger physics, automatic Xbox/PlayStation HUD button glyphs, `dual-rumble` haptic feedback, radial-wheel stick selection, interactive Pause Map crosshair cursor, full Title/Pause/Phone/Shop/Radio navigation, and tunable Sensitivity / Deadzone / Vibration settings.
 
 ## Controls
 
@@ -30,7 +31,7 @@ A real-time 3D browser recreation of **Grand Theft Auto V** set in sun-drenched 
 | Helicopter Ascend / Descend | `Space` / `Shift` | `RT` / `LT` (`R2` / `L2`) |
 | Helicopter Yaw (Rudder) | `A` / `D` | `LB` / `RB` (`L1` / `R1`) or `LS` |
 | Weapon Wheel / Quick Cycle | Hold `Tab` / `1`–`6` / Scroll | Hold `LB` (`L1`) + `RS` / Tap `LB` |
-| Radio Wheel / Quick Cycle | Hold `Q` / Tap `R` | Hold `D-Pad Left` + `RS` / Tap `D-Pad Left` |
+| Radio Wheel / Skip Song / Cycle Station | Hold `Q` / Tap `N` / Tap `R` | Hold `D-Pad Left` + `RS` / Tap `D-Pad Left` |
 | Character Switch | Hold `Alt` (or `F1`–`F3`) | Hold `D-Pad Down` + `RS` |
 | Special Ability | `X` or `CapsLock` | `L3 + R3` |
 | Horn / Police Siren | `H` | `L3` |
