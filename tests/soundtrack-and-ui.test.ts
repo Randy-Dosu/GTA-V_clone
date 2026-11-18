@@ -160,6 +160,38 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     audio.playWasted();
     audio.updateVehicleAudio(true, 'supercar', 0.7, 1, 0.5, 0.6, 0.016, false);
 
+    // Combustion engine model: audible in-vehicle, silent on foot, per-family character
+    audio.updateVehicleAudio(false, null, 0, 0, 0, 0, 0.016, false);
+    expect((audio as unknown as { engineGain: { gain: { value: number } } }).engineGain.gain.value).toBe(0);
+    // Rev the engine up over a few frames (real RPM inertia — no instant jump)
+    for (let i = 0; i < 40; i++) {
+      audio.updateVehicleAudio(true, 'muscle', 0.45, 0.9, 0, 0, 0.016, false);
+    }
+    const audioInternals = audio as unknown as {
+      engineGain: { gain: { value: number } };
+      engineOsc1: { frequency: { value: number } };
+      engineOsc2: { frequency: { value: number } };
+      engineOsc3: { frequency: { value: number } };
+      engineNoiseGain: { gain: { value: number } };
+      engineGear: number;
+      engineRpm: number;
+    };
+    expect(audioInternals.engineGain.gain.value).toBeGreaterThan(0.05);
+    expect(audioInternals.engineOsc1.frequency.value).toBeGreaterThan(30);
+    expect(audioInternals.engineOsc1.frequency.value).toBeLessThan(200);
+    // V8 sub-harmonic burble & exhaust roar are active
+    expect(audioInternals.engineOsc3.frequency.value).toBeCloseTo(audioInternals.engineOsc1.frequency.value * 0.5, 5);
+    expect(audioInternals.engineNoiseGain.gain.value).toBeGreaterThan(0.02);
+    // Sustained speed climbs through gears (RPM dip on shift, gear state advances)
+    for (let i = 0; i < 90; i++) {
+      audio.updateVehicleAudio(true, 'muscle', 0.02 * i * 0.012 + 0.5, 0.8, 0, 0, 0.016, false);
+    }
+    expect(audioInternals.engineGear).toBeGreaterThan(0);
+    audio.updateVehicleAudio(true, 'helicopter', 0.6, 0.5, 0, 0, 0.016, false);
+    expect(audioInternals.engineOsc1.frequency.value).toBeGreaterThan(150); // turbine whine
+    audio.updateVehicleAudio(false, null, 0, 0, 0, 0, 0.016, false);
+    expect(audioInternals.engineGain.gain.value).toBe(0);
+
     // Smart MP3 file importer binds exact requested hits AND routes extra artist files
     const soberFile = new File(['audio'], 'Kweku Smoke - Sober.mp3', { type: 'audio/mpeg' });
     const prayerFile = new File(['audio'], 'Stonebwoy - Send Dem a Prayer.mp3', {

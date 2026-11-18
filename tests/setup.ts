@@ -159,6 +159,9 @@ class MockAudioContext {
   public createDelay() {
     return createAudioNode({ delayTime: createAudioParam(0) });
   }
+  public createWaveShaper() {
+    return createAudioNode({ curve: null, oversample: 'none' });
+  }
   public createBuffer(_channels: number, length: number, sampleRate: number) {
     const arr = new Float32Array(length);
     return {

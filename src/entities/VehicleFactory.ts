@@ -25,6 +25,38 @@ export class VehicleFactory {
   private plateTex: THREE.CanvasTexture;
   private taxiSignTex: THREE.CanvasTexture | null = null;
 
+  /**
+   * Extrude a 2D side-profile silhouette (x = length axis, y = height) across
+   * the car's width with soft beveled shoulders — stamped-steel body panels
+   * instead of stacked boxes. Front of the car is +x in profile space.
+   */
+  private extrudeProfile(
+    pts: Array<[number, number]>,
+    width: number,
+    bevel: number,
+    mat: THREE.Material
+  ): THREE.Mesh {
+    const shape = new THREE.Shape();
+    shape.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) shape.lineTo(pts[i][0], pts[i][1]);
+    shape.closePath();
+    const depth = Math.max(0.05, width - bevel * 2);
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: bevel,
+      bevelSize: bevel * 0.92,
+      bevelSegments: 3,
+      curveSegments: 10,
+    });
+    geo.translate(0, 0, -depth / 2);
+    geo.rotateY(-Math.PI / 2); // profile x -> world z (+z = nose), extrusion -> width
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return mesh;
+  }
+
   private makeTaxiSignTex(): THREE.CanvasTexture {
     const c = document.createElement('canvas');
     c.width = 256;
@@ -467,185 +499,196 @@ export class VehicleFactory {
     underbody.position.set(0, wr * 0.72, 0);
     bodyGroup.add(underbody);
 
+    // ============ Sculpted single-piece car bodies ============
+    // Beveled extruded side-profile silhouettes: real hood lines, windshield
+    // rake, greenhouse & trunk deck — smooth stamped steel, not stacked boxes.
+    const f = L * 0.5;
+    const isPolice = kind === 'police';
+    const whiteRoofMat = isPolice
+      ? new THREE.MeshPhysicalMaterial({ color: 0xf4f6f9, roughness: 0.22, clearcoat: 0.9 })
+      : paintMat;
+
+    let lowerPts: Array<[number, number]>;
+    let cabinPts: Array<[number, number]>;
+    let roofPts: Array<[number, number]>;
+    let cabinW = W * 0.84;
+    let roofW = W * 0.92;
+
     if (kind === 'supercar') {
-      // Pegassi Zentorno — low-slung Italian exotic wedge supercar!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.44, L * 0.96), paintMat);
-      chassis.position.set(0, 0.5, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
+      // Low-slung mid-engine wedge
+      lowerPts = [
+        [f, 0.3], [f * 0.98, 0.4], [f * 0.55, 0.5], [f * 0.2, 0.56],
+        [-f * 0.5, 0.6], [-f * 0.85, 0.66], [-f * 0.99, 0.6], [-f, 0.36],
+      ];
+      cabinPts = [[f * 0.32, 0.56], [f * 0.06, 1.02], [-f * 0.34, 1.05], [-f * 0.5, 0.6]];
+      roofPts = [[f * 0.06, 0.97], [f * 0.02, 1.03], [-f * 0.36, 1.06], [-f * 0.42, 0.97]];
+      cabinW = W * 0.78;
+      roofW = W * 0.8;
+    } else if (kind === 'muscle') {
+      // Long-hood fastback
+      lowerPts = [
+        [f, 0.38], [f * 0.98, 0.62], [f * 0.52, 0.7], [f * 0.3, 0.73],
+        [-f * 0.4, 0.78], [-f * 0.88, 0.9], [-f * 0.99, 0.68], [-f, 0.42],
+      ];
+      cabinPts = [[f * 0.28, 0.72], [0, 1.32], [-f * 0.4, 1.22], [-f * 0.64, 0.8]];
+      roofPts = [[f * 0.02, 1.24], [-f * 0.02, 1.33], [-f * 0.4, 1.24], [-f * 0.44, 1.14]];
+      cabinW = W * 0.82;
+    } else if (kind === 'suv') {
+      // Tall upright utility body
+      lowerPts = [
+        [f, 0.42], [f * 0.985, 0.66], [f * 0.5, 0.79], [f * 0.42, 0.8],
+        [-f * 0.8, 0.82], [-f * 0.985, 0.92], [-f, 0.48],
+      ];
+      cabinPts = [[f * 0.44, 0.81], [f * 0.34, 1.55], [-f * 0.52, 1.57], [-f * 0.64, 0.83]];
+      roofPts = [[f * 0.36, 1.54], [f * 0.33, 1.6], [-f * 0.54, 1.62], [-f * 0.57, 1.55]];
+      cabinW = W * 0.88;
+      roofW = W * 0.94;
+    } else if (kind === 'vintage') {
+      // Rounded classic curve
+      lowerPts = [
+        [f, 0.4], [f * 0.92, 0.64], [f * 0.5, 0.7], [f * 0.12, 0.73],
+        [-f * 0.6, 0.8], [-f * 0.95, 0.85], [-f * 0.99, 0.7], [-f, 0.44],
+      ];
+      cabinPts = [
+        [f * 0.32, 0.72], [f * 0.2, 1.02], [f * 0.04, 1.22], [-f * 0.14, 1.26],
+        [-f * 0.34, 1.16], [-f * 0.44, 0.96], [-f * 0.5, 0.74],
+      ];
+      roofPts = [[f * 0.02, 1.2], [-f * 0.16, 1.25], [-f * 0.36, 1.14], [-f * 0.42, 1.02]];
+      cabinW = W * 0.8;
+      roofW = W * 0.86;
+    } else {
+      // Three-box sedan family (Sedan, Taxi, LSPD Cruiser, luxury below)
+      const luxury = kind === 'luxury';
+      lowerPts = [
+        [f, 0.36], [f * 0.985, 0.6], [f * 0.47, 0.68], [f * 0.18, 0.735],
+        [-f * 0.5, 0.745], [-f * 0.82, 0.83], [-f * 0.99, 0.72], [-f, 0.4],
+      ];
+      cabinPts = luxury
+        ? [[f * 0.4, 0.75], [f * 0.14, 1.37], [-f * 0.54, 1.385], [-f * 0.72, 0.755]]
+        : [[f * 0.36, 0.73], [f * 0.12, 1.35], [-f * 0.42, 1.37], [-f * 0.62, 0.745]];
+      roofPts = luxury
+        ? [[f * 0.12, 1.33], [f * 0.1, 1.38], [-f * 0.56, 1.4], [-f * 0.62, 1.33]]
+        : [[f * 0.1, 1.31], [f * 0.07, 1.36], [-f * 0.44, 1.385], [-f * 0.5, 1.31]];
+      cabinW = W * 0.84;
+    }
 
-      // Sloped wedge nose hood
-      const nose = new THREE.Mesh(new THREE.BoxGeometry(W * 0.94, 0.28, L * 0.34), paintMat);
-      nose.position.set(0, 0.56, L * 0.31);
-      nose.rotation.x = 0.16;
+    bodyGroup.add(
+      this.extrudeProfile(lowerPts, W, 0.1, paintMat),
+      this.extrudeProfile(cabinPts, cabinW, 0.05, glassMat),
+      this.extrudeProfile(roofPts, roofW, 0.04, whiteRoofMat)
+    );
 
-      // Sculpted greenhouse cockpit + carbon rear louvers
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.78, 0.44, L * 0.44), glassMat);
-      cabin.position.set(0, 0.88, -0.05);
-      const roofCap = new THREE.Mesh(new THREE.BoxGeometry(W * 0.74, 0.07, L * 0.26), trimMat);
-      roofCap.position.set(0, 1.11, -0.1);
+    // Dark wheel wells so the tires tuck into real arches
+    for (const sx of [-W * 0.42, W * 0.42]) {
+      for (const sz of [-axleZ, axleZ]) {
+        const well = new THREE.Mesh(
+          new THREE.CylinderGeometry(wr + 0.14, wr + 0.14, wheelW + 0.12, 14),
+          trimMat
+        );
+        well.rotation.z = Math.PI / 2;
+        well.position.set(sx, wr + 0.05, sz);
+        bodyGroup.add(well);
+      }
+    }
 
-      // Sloped windshield
-      const wind = new THREE.Mesh(new THREE.BoxGeometry(W * 0.76, 0.06, 0.95), glassMat);
-      wind.position.set(0, 0.88, 0.82);
-      wind.rotation.x = 0.46;
+    // Door seam lines on both flanks
+    for (const sx of [-W * 0.5, W * 0.5]) {
+      for (const sz of [f * 0.16, -f * 0.3]) {
+        const seam = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.36, 0.024), trimMat);
+        seam.position.set(sx, 0.54, sz);
+        bodyGroup.add(seam);
+      }
+    }
 
-      // Side carbon air intakes
+    if (kind === 'supercar') {
+      // Side carbon air intakes + rear GT wing & quad exhausts
       for (const sx of [-W * 0.49, W * 0.49]) {
-        const vent = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.28, 0.95), trimMat);
-        vent.position.set(sx, 0.55, -0.45);
+        const vent = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.95), trimMat);
+        vent.position.set(sx, 0.52, -f * 0.45);
         bodyGroup.add(vent);
       }
-
-      // Rear GT wing & quad exhausts
       const wing = new THREE.Mesh(new THREE.BoxGeometry(W * 0.96, 0.06, 0.34), trimMat);
-      wing.position.set(0, 0.98, -L * 0.44);
+      wing.position.set(0, 0.78, -f * 0.88);
       for (const sx of [-0.55, 0.55]) {
-        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.28, 0.22), trimMat);
-        strut.position.set(sx, 0.82, -L * 0.43);
+        const strut = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.24, 0.22), trimMat);
+        strut.position.set(sx, 0.64, -f * 0.86);
         bodyGroup.add(strut);
       }
       const exhaust = new THREE.Mesh(
         new THREE.CylinderGeometry(0.09, 0.09, 0.22, 10).rotateX(Math.PI / 2),
         chromeMat
       );
-      exhaust.position.set(0, 0.36, -L * 0.49);
-
-      bodyGroup.add(chassis, nose, cabin, roofCap, wind, wing, exhaust);
+      exhaust.position.set(0, 0.42, -f * 0.98);
+      bodyGroup.add(wing, exhaust);
     } else if (kind === 'muscle') {
-      // Bravado Gauntlet — aggressive widebody American muscle car with dual racing stripes!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.54, L * 0.98), paintMat);
-      chassis.position.set(0, 0.58, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      // Racing stripes down hood & roof
+      // Bravado Gauntlet — dual racing stripes down the long hood
       const stripeMat = new THREE.MeshStandardMaterial({ color: 0xf4f6f9, roughness: 0.25 });
       for (const sx of [-0.22, 0.22]) {
-        const st = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, L * 0.96), stripeMat);
-        st.position.set(sx, 0.86, 0);
+        const st = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, L * 0.4), stripeMat);
+        st.position.set(sx, 0.745, f * 0.3);
         bodyGroup.add(st);
       }
 
       // Supercharger hood scoop
       const scoop = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.14, 0.85), trimMat);
-      scoop.position.set(0, 0.9, 0.95);
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.46, L * 0.44), glassMat);
-      cabin.position.set(0, 1.04, -0.22);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, 0.08, L * 0.34), paintMat);
-      roof.position.set(0, 1.28, -0.24);
-      roof.castShadow = true;
+      scoop.position.set(0, 0.78, f * 0.36);
+      bodyGroup.add(scoop);
 
       // Aggressive recessed muscle front grille & rear ducktail spoiler
       const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.88, 0.26, 0.1), trimMat);
-      grille.position.set(0, 0.58, L * 0.49);
+      grille.position.set(0, 0.56, f * 0.99);
       const ducktail = new THREE.Mesh(new THREE.BoxGeometry(W * 0.94, 0.14, 0.16), trimMat);
-      ducktail.position.set(0, 0.9, -L * 0.47);
-
-      bodyGroup.add(chassis, scoop, cabin, roof, grille, ducktail);
+      ducktail.position.set(0, 0.94, -f * 0.96);
+      bodyGroup.add(grille, ducktail);
     } else if (kind === 'suv') {
-      // Benefactor Dubsta — luxury boxy G-Wagon style SUV!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.68, L * 0.97), paintMat);
-      chassis.position.set(0, 0.76, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      const cabinGlass = new THREE.Mesh(new THREE.BoxGeometry(W * 0.9, 0.66, L * 0.62), glassMat);
-      cabinGlass.position.set(0, 1.4, -0.35);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.92, 0.12, L * 0.64), paintMat);
-      roof.position.set(0, 1.76, -0.35);
-      roof.castShadow = true;
-
-      // Front chrome bullbar & rear-mounted spare wheel!
-      const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.72, 0.36, 0.1), chromeMat);
-      grille.position.set(0, 0.84, L * 0.49);
+      // Benefactor Dubsta — front chrome bullbar & rear-mounted spare wheel!
+      const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.72, 0.34, 0.1), chromeMat);
+      grille.position.set(0, 0.6, f * 0.99);
       const spare = new THREE.Mesh(
         new THREE.CylinderGeometry(0.42, 0.42, 0.24, 16).rotateX(Math.PI / 2),
         paintMat
       );
-      spare.position.set(0.28, 1.08, -L * 0.5);
-
-      bodyGroup.add(chassis, cabinGlass, roof, grille, spare);
+      spare.position.set(0.28, 0.98, -f * 1.0);
+      bodyGroup.add(grille, spare);
     } else if (kind === 'luxury') {
-      // Benefactor Schafter — elegant chrome-trimmed luxury sedan!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.52, L * 0.98), paintMat);
-      chassis.position.set(0, 0.56, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.84, 0.46, L * 0.5), glassMat);
-      cabin.position.set(0, 1.04, -0.1);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.09, L * 0.4), paintMat);
-      roof.position.set(0, 1.3, -0.12);
-      roof.castShadow = true;
-
-      // Chrome grille, window trim & hood ornament
+      // Benefactor Schafter — elegant chrome grille, beltline trim & hood ornament
       const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.6, 0.24, 0.08), chromeMat);
-      grille.position.set(0, 0.56, L * 0.49);
+      grille.position.set(0, 0.55, f * 0.99);
       for (const sx of [-W * 0.43, W * 0.43]) {
-        const trim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, L * 0.48), chromeMat);
-        trim.position.set(sx, 1.06, -0.1);
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, L * 0.52), chromeMat);
+        trim.position.set(sx, 0.76, -f * 0.05);
         bodyGroup.add(trim);
       }
       const ornament = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.12, 6), chromeMat);
-      ornament.position.set(0, 0.82, L * 0.44);
-      bodyGroup.add(chassis, cabin, roof, grille, ornament);
+      ornament.position.set(0, 0.78, f * 0.42);
+      bodyGroup.add(grille, ornament);
     } else if (kind === 'vintage') {
-      // Declasse Tornado — rounded 1960s classic with chrome bumpers & tail fins!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.56, L * 0.98), paintMat);
-      chassis.position.set(0, 0.58, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      // Rounded greenhouse (scaled sphere reads as a classic hardtop)
-      const cabin = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 12), glassMat);
-      cabin.scale.set(1.28, 0.62, 1.85);
-      cabin.position.set(0, 1.08, -0.15);
-      const roof = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 12), paintMat);
-      roof.scale.set(1.26, 0.5, 1.8);
-      roof.position.set(0, 1.2, -0.15);
-      roof.castShadow = true;
-
-      // Big chrome bumpers + tail fins
+      // Declasse Tornado — big chrome bumpers, tail fins & white-wall tires
       for (const s of [1, -1]) {
         const bumper = new THREE.Mesh(new THREE.BoxGeometry(W * 1.02, 0.16, 0.14), chromeMat);
-        bumper.position.set(0, 0.36, s * L * 0.5);
+        bumper.position.set(0, 0.36, s * f * 0.99);
         bodyGroup.add(bumper);
       }
       for (const sx of [-W * 0.46, W * 0.46]) {
-        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, 0.7), paintMat);
-        fin.position.set(sx, 0.82, -L * 0.38);
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.7), paintMat);
+        fin.position.set(sx, 0.82, -f * 0.76);
         fin.rotation.x = 0.2;
         bodyGroup.add(fin);
       }
-      // White-wall tire rings
       const wallMat = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.7 });
-      const trackX = spec.halfWidth - 0.06;
-      const axleZ = spec.halfLength * 0.64;
       for (const sx of [-trackX, trackX]) {
         for (const sz of [-axleZ, axleZ]) {
-          const ring = new THREE.Mesh(new THREE.TorusGeometry(spec.wheelRadius * 0.72, 0.035, 6, 20), wallMat);
+          const ring = new THREE.Mesh(
+            new THREE.TorusGeometry(spec.wheelRadius * 0.72, 0.035, 6, 20),
+            wallMat
+          );
           ring.position.set(sx + Math.sign(sx) * 0.14, spec.wheelRadius, sz);
           ring.rotation.y = Math.PI / 2;
           bodyGroup.add(ring);
         }
       }
-      bodyGroup.add(chassis, cabin, roof);
     } else if (kind === 'cab') {
-      // Vapid Taxi — yellow service sedan with roof sign & checker stripe!
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.54, L * 0.98), paintMat);
-      chassis.position.set(0, 0.58, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.84, 0.48, L * 0.48), glassMat);
-      cabin.position.set(0, 1.06, -0.12);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.09, L * 0.38), paintMat);
-      roof.position.set(0, 1.32, -0.14);
-      roof.castShadow = true;
-
-      // Checker stripe along both flanks
+      // Vapid Taxi — checker stripe along both flanks + illuminated roof sign
       const darkMat = new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.5 });
       for (const sx of [-W * 0.505, W * 0.505]) {
         for (let i = 0; i < 8; i++) {
@@ -653,68 +696,50 @@ export class VehicleFactory {
             new THREE.BoxGeometry(0.02, 0.09, 0.28),
             i % 2 === 0 ? darkMat : new THREE.MeshStandardMaterial({ color: 0xf4f6f9, roughness: 0.5 })
           );
-          sq.position.set(sx, 0.52, -L * 0.4 + i * 0.28);
+          sq.position.set(sx, 0.52, -f * 0.8 + i * 0.28);
           bodyGroup.add(sq);
         }
       }
 
-      // Illuminated TAXI roof sign
       const signTex = this.taxiSignTex ?? (this.taxiSignTex = this.makeTaxiSignTex());
       const sign = new THREE.Mesh(
         new THREE.BoxGeometry(0.62, 0.28, 0.3),
         new THREE.MeshStandardMaterial({ map: signTex, emissive: 0xfff2b0, emissiveMap: signTex, emissiveIntensity: 0.7 })
       );
-      sign.position.set(0, 1.52, -0.14);
+      sign.position.set(0, 1.55, -f * 0.08);
       const signBase = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.24), trimMat);
-      signBase.position.set(0, 1.39, -0.14);
-      bodyGroup.add(chassis, cabin, roof, sign, signBase);
+      signBase.position.set(0, 1.41, -f * 0.08);
+      bodyGroup.add(sign, signBase);
     } else {
-      // Obey Tailgater (Sedan) OR Vapid LSPD Police Cruiser!
-      const isPolice = kind === 'police';
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(W, 0.54, L * 0.98), paintMat);
-      chassis.position.set(0, 0.58, 0);
-      chassis.castShadow = true;
-      chassis.receiveShadow = true;
-
-      const whiteRoofMat = isPolice
-        ? new THREE.MeshPhysicalMaterial({ color: 0xf4f6f9, roughness: 0.22, clearcoat: 0.9 })
-        : paintMat;
-
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(W * 0.84, 0.48, L * 0.48), glassMat);
-      cabin.position.set(0, 1.06, -0.12);
-      const roof = new THREE.Mesh(new THREE.BoxGeometry(W * 0.82, 0.09, L * 0.38), whiteRoofMat);
-      roof.position.set(0, 1.32, -0.14);
-      roof.castShadow = true;
-
+      // Obey Tailgater (Sedan) OR Vapid LSPD Police Cruiser extras
       const grille = new THREE.Mesh(new THREE.BoxGeometry(W * 0.58, 0.26, 0.08), chromeMat);
-      grille.position.set(0, 0.58, L * 0.49);
-
-      bodyGroup.add(chassis, cabin, roof, grille);
+      grille.position.set(0, 0.55, f * 0.99);
+      bodyGroup.add(grille);
 
       if (isPolice) {
         // Authentic white doors with LSPD shield & "OBEY & SURVIVE"
         const doorMat = new THREE.MeshStandardMaterial({ map: this.policeDoorTex, roughness: 0.3 });
         for (const sx of [-W * 0.505, W * 0.505]) {
           const door = new THREE.Mesh(new THREE.PlaneGeometry(L * 0.46, 0.5), doorMat);
-          door.position.set(sx, 0.58, -0.05);
+          door.position.set(sx, 0.56, -f * 0.05);
           door.rotation.y = sx > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
           bodyGroup.add(door);
         }
 
         // Front steel PIT push-bar bumper
         const pushBar = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.52, 0.22), trimMat);
-        pushBar.position.set(0, 0.56, L * 0.52);
+        pushBar.position.set(0, 0.54, f * 1.03);
         bodyGroup.add(pushBar);
 
         // Rooftop LSPD red/blue flashing lightbar!
         const barCenter = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.22), chromeMat);
-        barCenter.position.set(0, 1.44, -0.05);
+        barCenter.position.set(0, 1.47, -f * 0.05);
         sirenRedMat = new THREE.MeshBasicMaterial({ color: 0xff1e26 });
         sirenBlueMat = new THREE.MeshBasicMaterial({ color: 0x1d7bff });
         const redPod = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.14, 0.22), sirenRedMat);
-        redPod.position.set(-0.4, 1.44, -0.05);
+        redPod.position.set(-0.4, 1.47, -f * 0.05);
         const bluePod = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.14, 0.22), sirenBlueMat);
-        bluePod.position.set(0.4, 1.44, -0.05);
+        bluePod.position.set(0.4, 1.47, -f * 0.05);
         sirenLight = new THREE.PointLight(0xff1e2d, 0, 22);
         sirenLight.position.set(0, 1.9, 0);
         bodyGroup.add(barCenter, redPod, bluePod, sirenLight);
@@ -753,7 +778,16 @@ export class VehicleFactory {
     root.add(headlightBeam);
 
     // Side mirrors, crisp LED headlights, dynamic brake taillights & San Andreas license plate!
-    const headY = kind === 'supercar' ? 0.52 : kind === 'suv' ? 0.84 : 0.62;
+    const headY =
+      kind === 'supercar'
+        ? 0.46
+        : kind === 'suv'
+          ? 0.82
+          : kind === 'vintage'
+            ? 0.58
+            : kind === 'muscle'
+              ? 0.6
+              : 0.62;
     for (const sx of [-W * 0.36, W * 0.36]) {
       const hl = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.14, 0.08), headlightMat);
       hl.position.set(sx, headY, L * 0.49);

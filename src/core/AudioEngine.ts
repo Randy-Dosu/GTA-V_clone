@@ -15,6 +15,27 @@ export interface ImportAudioResult {
   firstSong: SoundtrackSong | null;
 }
 
+/**
+ * Per-vehicle-family engine character: firing frequency at full revs,
+ * harmonic order mix (firing saw / 2nd-order square / sub-harmonic sine),
+ * brightness of the RPM-tracked lowpass, exhaust noise level & drive feel.
+ */
+const ENGINE_TUNE: Record<
+  Exclude<VehicleKind, 'helicopter'>,
+  { fire: number; bright: number; h1: number; h2: number; h3: number; noise: number }
+> = {
+  supercar: { fire: 118, bright: 1.55, h1: 0.55, h2: 0.44, h3: 0.16, noise: 1.3 }, // V10 flat-plane scream
+  muscle: { fire: 56, bright: 0.8, h1: 0.6, h2: 0.26, h3: 0.52, noise: 1.05 }, // V8 burble & lobe
+  sedan: { fire: 94, bright: 1.0, h1: 0.5, h2: 0.3, h3: 0.26, noise: 0.9 }, // everyday I4
+  cab: { fire: 90, bright: 0.95, h1: 0.5, h2: 0.3, h3: 0.3, noise: 0.95 }, // hard-working I4
+  police: { fire: 100, bright: 1.15, h1: 0.52, h2: 0.34, h3: 0.24, noise: 1.0 }, // pursuit V8
+  luxury: { fire: 84, bright: 0.95, h1: 0.5, h2: 0.28, h3: 0.3, noise: 0.85 }, // refined V8
+  suv: { fire: 66, bright: 0.72, h1: 0.58, h2: 0.24, h3: 0.44, noise: 1.0 }, // torquey diesel-ish
+  vintage: { fire: 52, bright: 0.75, h1: 0.62, h2: 0.24, h3: 0.5, noise: 1.0 }, // old-school low-rev
+  bike: { fire: 152, bright: 1.75, h1: 0.6, h2: 0.36, h3: 0.08, noise: 0.8 }, // rev-happy I4 rasp
+};
+
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
@@ -29,8 +50,19 @@ export class AudioEngine {
   // Engine continuous nodes
   private engineOsc1: OscillatorNode | null = null;
   private engineOsc2: OscillatorNode | null = null;
+  private engineOsc3: OscillatorNode | null = null;
+  private engineOsc1Gain: GainNode | null = null;
+  private engineOsc2Gain: GainNode | null = null;
+  private engineOsc3Gain: GainNode | null = null;
+  private engineShaper: WaveShaperNode | null = null;
   private engineFilter: BiquadFilterNode | null = null;
   private engineGain: GainNode | null = null;
+  private engineNoiseFilter: BiquadFilterNode | null = null;
+  private engineNoiseGain: GainNode | null = null;
+  private tireNoiseGain: GainNode | null = null;
+  private windNoiseGain: GainNode | null = null;
+  private rotorLfo: OscillatorNode | null = null;
+  private rotorLfoDepth: GainNode | null = null;
 
   // Tire screech continuous nodes
   private screechGain: GainNode | null = null;
@@ -54,6 +86,13 @@ export class AudioEngine {
   private stepIndex = 0;
   private songElapsed = 0;
   private pausedByUser = false;
+
+  // Combustion engine simulation state (gear shifts, rev inertia, pops)
+  private engineRpm = 0.2;
+  private engineGear = 0;
+  private shiftDip = 0;
+  private lastVehicleThrottle = 0;
+  private backfireCooldown = 0;
 
   // HTMLAudioElement for real studio audio files (imported in-game, via public/music/manifest.json, or the music API)
   private htmlAudio: HTMLAudioElement | null = null;
@@ -489,29 +528,110 @@ export class AudioEngine {
   private setupContinuousNodes(): void {
     if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
 
-    // Engine synth
-    this.engineOsc1 = this.ctx.createOscillator();
-    this.engineOsc2 = this.ctx.createOscillator();
-    this.engineOsc1.type = 'sawtooth';
-    this.engineOsc2.type = 'triangle';
-    this.engineOsc1.frequency.value = 55;
-    this.engineOsc2.frequency.value = 110;
+    // ============ Combustion engine synth ============
+    // Harmonic stack: firing-order saw + crank 2nd-order square + sub-harmonic
+    // sine (V8 burble), soft-clipped by load, band-limited by RPM — then
+    // layered with exhaust roar, tire roll, wind rush & rotor thump.
+    const makeOsc = (type: OscillatorType, freq: number): OscillatorNode => {
+      const o = this.ctx!.createOscillator();
+      o.type = type;
+      o.frequency.value = freq;
+      return o;
+    };
+    this.engineOsc1 = makeOsc('sawtooth', 80); // firing frequency
+    this.engineOsc2 = makeOsc('square', 162); // 2nd-order crank harmonic
+    this.engineOsc3 = makeOsc('sine', 40); // sub-harmonic burble
+
+    const softClipCurve = new Float32Array(257);
+    for (let i = 0; i < 257; i++) {
+      const x = (i / 256) * 2 - 1;
+      softClipCurve[i] = Math.tanh(x * 2.2) * 0.85;
+    }
+
+    this.engineShaper = this.ctx.createWaveShaper();
+    this.engineShaper.curve = softClipCurve;
+    this.engineOsc1Gain = this.ctx.createGain();
+    this.engineOsc1Gain.gain.value = 0.5;
+    this.engineOsc2Gain = this.ctx.createGain();
+    this.engineOsc2Gain.gain.value = 0.3;
+    this.engineOsc3Gain = this.ctx.createGain();
+    this.engineOsc3Gain.gain.value = 0.35;
 
     this.engineFilter = this.ctx.createBiquadFilter();
     this.engineFilter.type = 'lowpass';
-    this.engineFilter.frequency.value = 260;
-    this.engineFilter.Q.value = 2.4;
+    this.engineFilter.frequency.value = 420;
+    this.engineFilter.Q.value = 1.1;
 
     this.engineGain = this.ctx.createGain();
     this.engineGain.gain.value = 0;
 
-    this.engineOsc1.connect(this.engineFilter);
-    this.engineOsc2.connect(this.engineFilter);
+    this.engineOsc1.connect(this.engineOsc1Gain);
+    this.engineOsc2.connect(this.engineOsc2Gain);
+    this.engineOsc3.connect(this.engineOsc3Gain);
+    this.engineOsc1Gain.connect(this.engineShaper);
+    this.engineOsc2Gain.connect(this.engineShaper);
+    this.engineOsc3Gain.connect(this.engineShaper);
+    this.engineShaper.connect(this.engineFilter);
     this.engineFilter.connect(this.engineGain);
     this.engineGain.connect(this.sfxGain);
 
     this.engineOsc1.start();
     this.engineOsc2.start();
+    this.engineOsc3.start();
+
+    // Exhaust / intake roar (band-passed noise follows RPM + throttle)
+    const engineNoiseSrc = this.ctx.createBufferSource();
+    engineNoiseSrc.buffer = this.noiseBuffer;
+    engineNoiseSrc.loop = true;
+    this.engineNoiseFilter = this.ctx.createBiquadFilter();
+    this.engineNoiseFilter.type = 'bandpass';
+    this.engineNoiseFilter.frequency.value = 700;
+    this.engineNoiseFilter.Q.value = 0.9;
+    this.engineNoiseGain = this.ctx.createGain();
+    this.engineNoiseGain.gain.value = 0;
+    engineNoiseSrc.connect(this.engineNoiseFilter);
+    this.engineNoiseFilter.connect(this.engineNoiseGain);
+    this.engineNoiseGain.connect(this.sfxGain);
+    engineNoiseSrc.start();
+
+    // Tire rolling noise & wind rush (speed-dependent ambience)
+    const tireSrc = this.ctx.createBufferSource();
+    tireSrc.buffer = this.noiseBuffer;
+    tireSrc.loop = true;
+    const tireFilter = this.ctx.createBiquadFilter();
+    tireFilter.type = 'bandpass';
+    tireFilter.frequency.value = 480;
+    tireFilter.Q.value = 0.55;
+    this.tireNoiseGain = this.ctx.createGain();
+    this.tireNoiseGain.gain.value = 0;
+    tireSrc.connect(tireFilter);
+    tireFilter.connect(this.tireNoiseGain);
+    this.tireNoiseGain.connect(this.sfxGain);
+    tireSrc.start();
+
+    const windSrc = this.ctx.createBufferSource();
+    windSrc.buffer = this.noiseBuffer;
+    windSrc.loop = true;
+    const windFilter = this.ctx.createBiquadFilter();
+    windFilter.type = 'lowpass';
+    windFilter.frequency.value = 240;
+    windFilter.Q.value = 0.4;
+    this.windNoiseGain = this.ctx.createGain();
+    this.windNoiseGain.gain.value = 0;
+    windSrc.connect(windFilter);
+    windFilter.connect(this.windNoiseGain);
+    this.windNoiseGain.connect(this.sfxGain);
+    windSrc.start();
+
+    // Helicopter rotor blade thump: LFO modulating the engine bus gain
+    this.rotorLfo = this.ctx.createOscillator();
+    this.rotorLfo.type = 'sine';
+    this.rotorLfo.frequency.value = 12;
+    this.rotorLfoDepth = this.ctx.createGain();
+    this.rotorLfoDepth.gain.value = 0;
+    this.rotorLfo.connect(this.rotorLfoDepth);
+    this.rotorLfoDepth.connect(this.engineGain.gain);
+    this.rotorLfo.start();
 
     // Tire screech loop
     const screechSrc = this.ctx.createBufferSource();
@@ -1158,7 +1278,15 @@ export class AudioEngine {
     dt: number,
     muted: boolean
   ): void {
-    if (!this.ctx || !this.engineGain || !this.engineOsc1 || !this.engineOsc2 || !this.engineFilter) {
+    if (
+      !this.ctx ||
+      !this.engineGain ||
+      !this.engineOsc1 ||
+      !this.engineOsc2 ||
+      !this.engineOsc3 ||
+      !this.engineFilter ||
+      !this.engineNoiseGain
+    ) {
       return;
     }
     const now = this.ctx.currentTime;
@@ -1171,39 +1299,87 @@ export class AudioEngine {
     }
 
     if (inVehicle && kind) {
-      const clamped = Math.min(1.2, Math.abs(speedRatio));
-      const gearProgress = (clamped * 4.2) % 1;
-      const rpm =
-        kind === 'helicopter'
-          ? 0.45 + clamped * 0.55
-          : 0.25 + gearProgress * 0.52 + clamped * 0.35 + Math.abs(throttle) * 0.12;
+      const sr = Math.min(1.12, Math.abs(speedRatio));
+      const thr = Math.abs(throttle);
+      this.backfireCooldown = Math.max(0, this.backfireCooldown - dt);
 
-      let baseFreq = 48;
-      let harmonic = 2.0;
-      let filterBase = 240;
-      if (kind === 'supercar') {
-        baseFreq = 68;
-        harmonic = 2.5;
-        filterBase = 480;
-      } else if (kind === 'muscle') {
-        baseFreq = 40;
-        harmonic = 1.5;
-        filterBase = 310;
-      } else if (kind === 'bike') {
-        baseFreq = 82;
-        harmonic = 2.0;
-        filterBase = 560;
-      } else if (kind === 'helicopter') {
-        baseFreq = 32 + Math.sin(now * 44) * 8;
-        harmonic = 1.5;
-        filterBase = 210;
+      if (kind === 'helicopter') {
+        // Turbine whine + rotor blade-pass thump
+        const rotor = 0.55 + sr * 0.45;
+        const whine = 185 + rotor * 175;
+        this.engineOsc1!.frequency.setTargetAtTime(whine, now, 0.08);
+        this.engineOsc2!.frequency.setTargetAtTime(whine * 2.72, now, 0.08);
+        this.engineOsc3!.frequency.setTargetAtTime(21, now, 0.1);
+        this.engineOsc1Gain!.gain.setTargetAtTime(0.42, now, 0.1);
+        this.engineOsc2Gain!.gain.setTargetAtTime(0.16, now, 0.1);
+        this.engineOsc3Gain!.gain.setTargetAtTime(0.6, now, 0.1);
+        this.engineFilter!.frequency.setTargetAtTime(650 + rotor * 900, now, 0.1);
+        this.engineNoiseFilter!.frequency.setTargetAtTime(850 + rotor * 1500, now, 0.1);
+        this.engineNoiseGain!.gain.setTargetAtTime(0.05 + rotor * 0.05, now, 0.1);
+        this.engineGain.gain.setTargetAtTime(0.075 + rotor * 0.05, now, 0.1);
+        // Blade-pass frequency rises with rotor RPM
+        this.rotorLfo!.frequency.setTargetAtTime(10.5 + rotor * 8.5, now, 0.15);
+        this.rotorLfoDepth!.gain.setTargetAtTime(0.45, now, 0.15);
+        this.tireNoiseGain?.gain.setTargetAtTime(0, now, 0.1);
+        this.windNoiseGain?.gain.setTargetAtTime(Math.min(0.05, sr * 0.06), now, 0.1);
+      } else {
+        // ===================== Combustion engine =====================
+        // Gear model: RPM climbs within each gear, dips on upshift
+        const gears = kind === 'supercar' || kind === 'bike' ? 6 : 5;
+        const gearPos = sr * gears;
+        const gear = Math.min(gears - 1, Math.floor(gearPos));
+        const within = gearPos - gear;
+        if (gear !== this.engineGear) {
+          this.shiftDip = gear > this.engineGear ? 0.2 : 0.05;
+          this.engineGear = gear;
+        }
+        this.shiftDip = Math.max(0, this.shiftDip - dt * 1.35);
+
+        // Launch revving + idle lumpiness (irregular combustion at low rpm)
+        const launchRev = sr < 0.1 ? thr * 0.42 : 0;
+        let targetRpm =
+          0.17 + within * 0.74 * (0.6 + 0.4 * thr) + launchRev - this.shiftDip;
+        targetRpm += Math.sin(now * 29) * 0.014 * Math.max(0, 1 - sr * 6);
+        // Engine inertia: revs build & fall with real mass
+        this.engineRpm += (targetRpm - this.engineRpm) * Math.min(1, dt * 5.5);
+        const rpm = Math.max(0.08, this.engineRpm);
+
+        // Per-vehicle-family firing frequency & harmonic character
+        const tune = ENGINE_TUNE[kind] ?? ENGINE_TUNE.sedan;
+        const fire = tune.fire * (0.22 + rpm * 1.5);
+        this.engineOsc1!.frequency.setTargetAtTime(fire, now, 0.035);
+        this.engineOsc2!.frequency.setTargetAtTime(fire * 2.015, now, 0.035); // slight detune = beating
+        this.engineOsc3!.frequency.setTargetAtTime(fire * 0.5, now, 0.035);
+        this.engineOsc1Gain!.gain.setTargetAtTime(tune.h1, now, 0.08);
+        this.engineOsc2Gain!.gain.setTargetAtTime(tune.h2 * (0.6 + thr * 0.7), now, 0.08);
+        this.engineOsc3Gain!.gain.setTargetAtTime(tune.h3, now, 0.08);
+        this.engineFilter!.frequency.setTargetAtTime(300 + rpm * 2400 * tune.bright, now, 0.05);
+        this.engineNoiseFilter!.frequency.setTargetAtTime(450 + rpm * 2100, now, 0.06);
+        this.engineNoiseGain!.gain.setTargetAtTime((0.012 + thr * 0.05) * tune.noise, now, 0.06);
+        this.engineGain.gain.setTargetAtTime(
+          Math.min(0.15, 0.055 + thr * 0.05 + sr * 0.04),
+          now,
+          0.06
+        );
+        this.rotorLfoDepth!.gain.setTargetAtTime(0, now, 0.1);
+
+        // Tire roll & wind rush grow with speed
+        this.tireNoiseGain?.gain.setTargetAtTime(Math.min(0.05, sr * 0.055), now, 0.1);
+        this.windNoiseGain?.gain.setTargetAtTime(Math.min(0.045, sr * sr * 0.055), now, 0.1);
+
+        // Exhaust backfire crackle on hard throttle lift at high RPM
+        if (
+          this.lastVehicleThrottle > 0.6 &&
+          throttle < 0.2 &&
+          rpm > 0.45 &&
+          this.backfireCooldown <= 0 &&
+          Math.random() < 0.4
+        ) {
+          this.playBackfire();
+          this.backfireCooldown = 0.45;
+        }
+        this.lastVehicleThrottle = throttle;
       }
-
-      this.engineOsc1.frequency.setTargetAtTime(baseFreq * (0.8 + rpm * 1.9), now, 0.04);
-      this.engineOsc2.frequency.setTargetAtTime(baseFreq * harmonic * (0.8 + rpm * 1.9), now, 0.04);
-      this.engineFilter.frequency.setTargetAtTime(filterBase + rpm * 650, now, 0.05);
-      const targetGain = 0.065 + Math.abs(throttle) * 0.045 + clamped * 0.03;
-      this.engineGain.gain.setTargetAtTime(targetGain, now, 0.06);
 
       if (this.screechGain && this.screechFilter) {
         const sGain = kind === 'helicopter' ? 0 : Math.min(0.11, driftIntensity * 0.1);
@@ -1211,7 +1387,11 @@ export class AudioEngine {
         this.screechFilter.frequency.setTargetAtTime(1250 + driftIntensity * 450, now, 0.05);
       }
     } else {
-      this.engineGain.gain.setTargetAtTime(0, now, 0.08);
+      this.engineGain?.gain.setTargetAtTime(0, now, 0.08);
+      this.engineNoiseGain?.gain.setTargetAtTime(0, now, 0.08);
+      this.tireNoiseGain?.gain.setTargetAtTime(0, now, 0.08);
+      this.windNoiseGain?.gain.setTargetAtTime(0, now, 0.08);
+      this.rotorLfoDepth?.gain.setTargetAtTime(0, now, 0.1);
       this.screechGain?.gain.setTargetAtTime(0, now, 0.05);
     }
 
@@ -1225,6 +1405,40 @@ export class AudioEngine {
         this.sirenGain.gain.setTargetAtTime(0, now, 0.08);
       }
     }
+  }
+
+  /** Exhaust backfire crackle: sharp gas expansion pop with a low thump tail */
+  private playBackfire(): void {
+    if (!this.ctx || !this.sfxGain || !this.noiseBuffer) return;
+    const t = this.ctx.currentTime;
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const flt = this.ctx.createBiquadFilter();
+    flt.type = 'bandpass';
+    flt.frequency.setValueAtTime(240, t);
+    flt.frequency.exponentialRampToValueAtTime(90, t + 0.09);
+    flt.Q.value = 1.6;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.24, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    src.connect(flt);
+    flt.connect(g);
+    g.connect(this.sfxGain);
+    src.start(t, Math.random() * 0.8);
+    src.stop(t + 0.12);
+
+    const thump = this.ctx.createOscillator();
+    const tg = this.ctx.createGain();
+    thump.type = 'sine';
+    thump.frequency.setValueAtTime(64, t);
+    thump.frequency.exponentialRampToValueAtTime(38, t + 0.11);
+    tg.gain.setValueAtTime(0.16, t);
+    tg.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+    thump.connect(tg);
+    tg.connect(this.sfxGain);
+    thump.start(t);
+    thump.stop(t + 0.14);
   }
 
   // ===================== COMBAT, WORLD & UI SFX =====================
