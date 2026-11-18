@@ -42,6 +42,8 @@ export interface Pedestrian {
   shootTimer: number;
   /** Display name used by the Groq AI street-talk system */
   name: string;
+  /** Loiter/idle countdown while the ped stands still (natural sidewalk life) */
+  pauseTimer: number;
 }
 
 /** Street names cycled across the 34 pedestrian NPCs for AI street talk */
@@ -239,6 +241,7 @@ export class TrafficAndPeds {
         isOfficer: false,
         shootTimer: 0,
         name: PED_NAMES[i % PED_NAMES.length],
+        pauseTimer: i % 5 === 0 ? 1 + Math.random() * 4 : 0,
       });
     }
   }
@@ -382,29 +385,27 @@ export class TrafficAndPeds {
         }
       }
 
-      // Obstacle detection right ahead (player, player's car, or another traffic car)
+      // Obstacle detection right ahead (player, player's car, or another traffic car).
+      // Returns the distance to the nearest obstacle for smooth brake tapering.
       const fwd = v.getForward();
-      let blocked = false;
+      let blockDist = Infinity;
       if (player && !player.dead) {
         const dx = player.pos.x - v.pos.x;
         const dz = player.pos.z - v.pos.z;
         const ahead = dx * fwd.x + dz * fwd.z;
         const side = Math.abs(-dx * fwd.z + dz * fwd.x);
         if (ahead > 1.8 && ahead < 13.5 && side < 3.1) {
-          blocked = true;
+          blockDist = Math.min(blockDist, ahead);
         }
       }
-      if (!blocked) {
-        for (const other of this.vehicles) {
-          if (other === v || other.kind === 'helicopter') continue;
-          const dx = other.pos.x - v.pos.x;
-          const dz = other.pos.z - v.pos.z;
-          const ahead = dx * fwd.x + dz * fwd.z;
-          const side = Math.abs(-dx * fwd.z + dz * fwd.x);
-          if (ahead > 2.2 && ahead < 12.5 && side < 2.4) {
-            blocked = true;
-            break;
-          }
+      for (const other of this.vehicles) {
+        if (other === v || other.kind === 'helicopter') continue;
+        const dx = other.pos.x - v.pos.x;
+        const dz = other.pos.z - v.pos.z;
+        const ahead = dx * fwd.x + dz * fwd.z;
+        const side = Math.abs(-dx * fwd.z + dz * fwd.x);
+        if (ahead > 2.2 && ahead < 12.5 && side < 2.4) {
+          blockDist = Math.min(blockDist, ahead);
         }
       }
 
@@ -414,23 +415,26 @@ export class TrafficAndPeds {
         td.axis,
         td.roadCoord,
         td.dir,
-        curAlong + td.dir * 12
+        curAlong + td.dir * 15
       );
       const desiredHeading = Math.atan2(targetPt.x - v.pos.x, targetPt.z - v.pos.z);
       let angleErr = ((desiredHeading - v.heading + Math.PI) % (Math.PI * 2)) - Math.PI;
       if (angleErr < -Math.PI) angleErr += Math.PI * 2;
 
-      const steer = THREE.MathUtils.clamp(angleErr * 1.9, -1, 1);
-      const targetSpeed = blocked ? 0 : td.cruiseSpeed * (Math.abs(angleErr) > 0.35 ? 0.55 : 1);
-      const throttle = blocked
-        ? v.speed > 1 ? -0.9 : 0
-        : v.speed < targetSpeed
-          ? 0.52
-          : -0.25;
+      const steer = THREE.MathUtils.clamp(angleErr * 1.45, -1, 1);
+      // Speed tapers smoothly as the obstacle nears — no more brake-slam / gas-slam pumping
+      const dangerDist = 13.0;
+      const stopDist = 5.0;
+      const obstacleFactor =
+        blockDist === Infinity ? 1 : THREE.MathUtils.clamp((blockDist - stopDist) / (dangerDist - stopDist), 0, 1);
+      const cornerFactor = Math.abs(angleErr) > 0.35 ? 0.55 : 1;
+      const targetSpeed = td.cruiseSpeed * obstacleFactor * cornerFactor;
+      const throttle = THREE.MathUtils.clamp((targetSpeed - v.speed) * 0.5, -0.75, 0.55);
+      const handbrake = v.speed > 0.6 && targetSpeed < 0.4;
 
       v.update(
         dt,
-        { throttle, steer, handbrake: blocked && v.speed < 1.2, boost: false, ascend: 0 },
+        { throttle, steer, handbrake, boost: false, ascend: 0 },
         colliders,
         ramps,
         effects,
@@ -580,11 +584,22 @@ export class TrafficAndPeds {
       let moveSpd = p.speed;
       if (p.fleeTimer > 0) {
         p.fleeTimer -= dt;
+        p.pauseTimer = 0;
         sprinting = true;
         moveSpd = 5.4;
         p.walkDir = Math.atan2(p.pos.x - p.fleeFrom.x, p.pos.z - p.fleeFrom.z);
-      } else if (Math.random() < dt * 0.14) {
-        p.walkDir += (Math.random() < 0.5 ? -1 : 1) * Math.PI * 0.5;
+      } else if (p.pauseTimer > 0) {
+        // Loitering: stand still and look around like a real person
+        p.pauseTimer -= dt;
+        moveSpd = 0;
+      } else if (Math.random() < dt * 0.05) {
+        // Occasional pause to check their phone / enjoy the view
+        p.pauseTimer = 1.5 + Math.random() * 5;
+        moveSpd = 0;
+      } else if (Math.random() < dt * 0.07) {
+        // Gentle drift in heading (±45°) instead of robotic right-angle snaps
+        p.walkDir += (Math.random() < 0.5 ? -1 : 1) * Math.PI * 0.25;
+        p.speed = 1.1 + Math.random() * 0.7;
       }
 
       const nextX = p.pos.x + Math.sin(p.walkDir) * moveSpd * dt;

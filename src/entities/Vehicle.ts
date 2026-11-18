@@ -240,8 +240,9 @@ export class Vehicle {
 
       const absSpd = Math.abs(forwardVel);
       if (absSpd > 0.35) {
-        const lowSpdFactor = Math.min(1, absSpd / 5.5);
-        const highSpdDamp = 1 / (1 + absSpd * (ctrl.focusGrip ? 0.012 : 0.022));
+        // Full authority by ~5 m/s with a floor for easy parking-speed turns
+        const lowSpdFactor = absSpd < 5.5 ? 0.45 + (absSpd / 5.5) * 0.55 : 1;
+        const highSpdDamp = 1 / (1 + absSpd * (ctrl.focusGrip ? 0.012 : 0.02));
         const driftBoost = ctrl.handbrake && absSpd > 8 ? 1.38 : 1.0;
         const focusBoost = ctrl.focusGrip ? 1.45 : 1.0;
         const revSign = forwardVel >= 0 ? 1 : -1;
@@ -395,12 +396,12 @@ export class Vehicle {
     let targetPitch = 0;
     if (this.kind === 'bike') {
       // Sportbikes lean cleanly INTO corners!
-      targetRoll = -this.steerAngle * Math.min(1, Math.abs(forwardVel) / 18) * 0.42;
-      targetPitch = ctrl.throttle > 0.2 ? -0.05 : brakingVisual ? 0.06 : 0;
+      targetRoll = -this.steerAngle * Math.min(1, Math.abs(forwardVel) / 18) * 0.5;
+      targetPitch = ctrl.throttle > 0.2 ? -0.07 : brakingVisual ? 0.08 : 0;
     } else {
-      // Cars exhibit subtle outward body roll in sharp corners & squat under launch
-      targetRoll = this.steerAngle * Math.min(1, Math.abs(forwardVel) / 22) * 0.065;
-      targetPitch = brakingVisual ? 0.045 : ctrl.throttle > 0.2 ? -0.032 : 0;
+      // Cars exhibit visible outward body roll in corners, squat under launch & dive under braking
+      targetRoll = this.steerAngle * Math.min(1, Math.abs(forwardVel) / 20) * 0.1;
+      targetPitch = brakingVisual ? 0.062 : ctrl.throttle > 0.2 ? -0.048 : 0;
     }
 
     if (this.airborne) {

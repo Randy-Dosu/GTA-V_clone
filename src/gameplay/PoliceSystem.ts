@@ -150,6 +150,7 @@ export class PoliceSystem {
       isOfficer: true,
       shootTimer: 0.8 + Math.random() * 0.6,
       name: 'LSPD Officer',
+      pauseTimer: 0,
     };
     this.traffic.peds.push(officer);
   }

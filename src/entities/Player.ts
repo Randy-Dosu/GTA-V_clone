@@ -352,7 +352,7 @@ export class Player {
     const targetVx = wishX * targetMaxSpeed;
     const targetVz = wishZ * targetMaxSpeed;
 
-    const accel = this.swimming ? 3.2 : this.grounded ? 14 : 4;
+    const accel = this.swimming ? 3.2 : this.grounded ? (inputLen > 0.1 ? 17 : 20) : 4;
     this.vel.x = THREE.MathUtils.lerp(this.vel.x, targetVx, Math.min(1, dt * accel));
     this.vel.z = THREE.MathUtils.lerp(this.vel.z, targetVz, Math.min(1, dt * accel));
 

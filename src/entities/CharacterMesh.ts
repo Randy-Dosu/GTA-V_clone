@@ -680,27 +680,41 @@ export class CharacterRig {
     }
 
     if (moveSpeed > 0.25 && isGrounded) {
-      const freq = isSprinting ? 12.5 : 8.5;
-      this.walkPhase += dt * freq * Math.max(0.55, speedRatio);
-      const swing = Math.sin(this.walkPhase) * (isSprinting ? 0.72 : 0.48) * Math.min(1, speedRatio);
-      const bob = Math.abs(Math.cos(this.walkPhase)) * (isSprinting ? 0.055 : 0.03);
+      // Stride-locked gait: step frequency tracks ground speed so feet PLANT
+      // instead of skating (a ~1.5 m stride per full leg cycle).
+      const strideFreq = THREE.MathUtils.clamp(moveSpeed * 4.3, 3.4, 14.5);
+      this.walkPhase += dt * strideFreq;
+      const gaitAmp = isSprinting ? 0.82 : 0.5; // ~47° sprint / ~29° walk leg sweep
+      const ampScale = Math.min(1, 0.42 + speedRatio * 0.85);
+      const swing = Math.sin(this.walkPhase) * gaitAmp * ampScale;
+      const swingVel = Math.cos(this.walkPhase) * gaitAmp * ampScale;
+      const bob = Math.abs(Math.cos(this.walkPhase)) * (isSprinting ? 0.065 : 0.032);
+      const hipSway = Math.sin(this.walkPhase) * (isSprinting ? 0.05 : 0.028);
 
       this.hips.position.y = 0.92 + bob;
+      this.hips.rotation.z = hipSway;
       this.leftLeg.rotation.x = swing;
       this.rightLeg.rotation.x = -swing;
-      // Knees bend when the leg swings back / lifts
-      this.leftKnee.rotation.x = Math.max(0, -swing) * 0.9 + (isSprinting ? 0.25 : 0.08);
-      this.rightKnee.rotation.x = Math.max(0, swing) * 0.9 + (isSprinting ? 0.25 : 0.08);
-      this.leftArm.rotation.x = -swing * 0.85;
-      this.rightArm.rotation.x = swing * 0.85;
-      // Elbows stay slightly bent while walking
-      this.leftElbow.rotation.x = -0.25 - Math.abs(swing) * 0.3;
-      this.rightElbow.rotation.x = -0.25 - Math.abs(swing) * 0.3;
-      this.torso.rotation.x = isSprinting ? 0.14 : 0.04;
-      this.torso.rotation.y = -swing * 0.1;
-      this.head.rotation.x = Math.sin(this.walkPhase * 2) * 0.03;
+      // Knees bend hardest as each leg lifts & swings through, straighten at plant
+      this.leftKnee.rotation.x = Math.max(0.06, -swingVel * 0.85 + 0.12) + (isSprinting ? 0.18 : 0);
+      this.rightKnee.rotation.x = Math.max(0.06, swingVel * 0.85 + 0.12) + (isSprinting ? 0.18 : 0);
+      // Arms counter-swing against legs with living elbow bend
+      this.leftArm.rotation.x = -swing * (isSprinting ? 1.05 : 0.9);
+      this.rightArm.rotation.x = swing * (isSprinting ? 1.05 : 0.9);
+      this.leftElbow.rotation.x = -0.3 - Math.max(0, swing) * 0.55;
+      this.rightElbow.rotation.x = -0.3 - Math.max(0, -swing) * 0.55;
+      // Torso counter-rotates against pelvis & leans into the run
+      this.torso.rotation.x = isSprinting ? 0.17 : 0.05;
+      this.torso.rotation.y = -swing * 0.16;
+      this.head.rotation.x = -this.torso.rotation.x * 0.6 + Math.sin(this.walkPhase * 2) * 0.02;
+      this.head.rotation.y = swing * 0.06;
+      this.leftArm.rotation.z = 0.06;
+      this.rightArm.rotation.z = -0.06;
+      this.leftArm.rotation.y = 0;
+      this.rightArm.rotation.y = 0;
     } else if (!isGrounded) {
       this.hips.position.y = 0.94;
+      this.hips.rotation.z = 0;
       this.leftLeg.rotation.x = 0.35;
       this.rightLeg.rotation.x = -0.28;
       this.leftKnee.rotation.x = 0.55;
@@ -711,28 +725,33 @@ export class CharacterRig {
       this.rightElbow.rotation.x = -0.4;
       this.torso.rotation.x = 0.08;
       this.head.rotation.x = 0;
+      this.head.rotation.y = 0;
+      this.leftArm.rotation.z = 0.06;
+      this.rightArm.rotation.z = -0.06;
+      this.leftArm.rotation.y = 0;
+      this.rightArm.rotation.y = 0;
     } else {
-      // Subtle idle breathing
+      // Idle: breathing, weight shift & subtle arm sway (nobody stands like a statue)
       this.walkPhase += dt * 2.0;
       const breath = Math.sin(this.walkPhase) * 0.012;
+      const weightShift = Math.sin(this.walkPhase * 0.45) * 0.035;
       this.hips.position.y = 0.92 + breath;
-      this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, dt * 10);
-      this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, dt * 10);
-      this.leftKnee.rotation.x = THREE.MathUtils.lerp(this.leftKnee.rotation.x, 0.04, dt * 10);
-      this.rightKnee.rotation.x = THREE.MathUtils.lerp(this.rightKnee.rotation.x, 0.04, dt * 10);
-      this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, dt * 10);
-      this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, dt * 10);
-      this.leftElbow.rotation.x = THREE.MathUtils.lerp(this.leftElbow.rotation.x, -0.12, dt * 10);
-      this.rightElbow.rotation.x = THREE.MathUtils.lerp(this.rightElbow.rotation.x, -0.12, dt * 10);
+      this.hips.rotation.z = weightShift * 0.5;
+      this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, weightShift * 0.35, dt * 10);
+      this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, -weightShift * 0.35, dt * 10);
+      this.leftKnee.rotation.x = THREE.MathUtils.lerp(this.leftKnee.rotation.x, 0.05, dt * 10);
+      this.rightKnee.rotation.x = THREE.MathUtils.lerp(this.rightKnee.rotation.x, 0.05, dt * 10);
+      this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, weightShift * 0.3, dt * 8);
+      this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -weightShift * 0.3, dt * 8);
+      this.leftArm.rotation.z = 0.06 + Math.sin(this.walkPhase * 0.7) * 0.02;
+      this.rightArm.rotation.z = -0.06 - Math.sin(this.walkPhase * 0.7 + 1.1) * 0.02;
+      this.leftElbow.rotation.x = THREE.MathUtils.lerp(this.leftElbow.rotation.x, -0.14, dt * 10);
+      this.rightElbow.rotation.x = THREE.MathUtils.lerp(this.rightElbow.rotation.x, -0.14, dt * 10);
       this.torso.rotation.x = THREE.MathUtils.lerp(this.torso.rotation.x, 0, dt * 8);
-      this.torso.rotation.y = THREE.MathUtils.lerp(this.torso.rotation.y, 0, dt * 8);
+      this.torso.rotation.y = THREE.MathUtils.lerp(this.torso.rotation.y, Math.sin(this.walkPhase * 0.45) * 0.03, dt * 6);
       this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x, Math.sin(this.walkPhase) * 0.02, dt * 6);
+      this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y, Math.sin(this.walkPhase * 0.32) * 0.14, dt * 3.2);
     }
-
-    this.leftArm.rotation.z = 0.06;
-    this.rightArm.rotation.z = -0.06;
-    this.leftArm.rotation.y = 0;
-    this.rightArm.rotation.y = 0;
 
     // Melee punch animation
     if (this.punchTimer > 0) {

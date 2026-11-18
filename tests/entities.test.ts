@@ -146,6 +146,103 @@ describe('Player, Vehicles, Helicopter & Camera Physics', () => {
     expect(VEHICLE_SPECS.cab.colors).toEqual([0xf5b800]);
   });
 
+  it('animates a stride-locked walk cycle with visible leg swings at real speeds', () => {
+    const scene = new THREE.Scene();
+    const player = new Player(scene);
+
+    // Walking pace (~1.4 m/s): legs must sweep visibly (>= 0.28 rad) — no more moonwalk glide
+    player.rig.walkPhase = 0;
+    let minLeg = Infinity;
+    let maxLeg = -Infinity;
+    for (let i = 0; i < 120; i++) {
+      player.rig.updateAnimation(1 / 60, 1.4, false, true, false);
+      const a = player.rig.leftLeg.rotation.x;
+      minLeg = Math.min(minLeg, a);
+      maxLeg = Math.max(maxLeg, a);
+    }
+    expect(maxLeg - minLeg).toBeGreaterThan(0.28);
+
+    // Sprint pace: even bigger sweep
+    minLeg = Infinity;
+    maxLeg = -Infinity;
+    for (let i = 0; i < 120; i++) {
+      player.rig.updateAnimation(1 / 60, 8.0, true, true, false);
+      const a = player.rig.leftLeg.rotation.x;
+      minLeg = Math.min(minLeg, a);
+      maxLeg = Math.max(maxLeg, a);
+    }
+    expect(maxLeg - minLeg).toBeGreaterThan(0.6);
+
+    // Idle: legs settle near zero with subtle weight-shift sway (not frozen, not walking)
+    for (let i = 0; i < 90; i++) {
+      player.rig.updateAnimation(1 / 60, 0, false, true, false);
+    }
+    expect(Math.abs(player.rig.leftLeg.rotation.x)).toBeLessThan(0.09);
+    expect(Math.abs(player.rig.rightLeg.rotation.x)).toBeLessThan(0.09);
+    // Idle arms keep a natural bend rather than snapping straight
+    expect(player.rig.leftElbow.rotation.x).toBeLessThan(-0.05);
+  });
+
+  it('smooths vehicle steering and spins the wheels proportionally to speed', () => {
+    const scene = new THREE.Scene();
+    const factory = makeVehicleFactory();
+    const effects = new EffectsManager(scene);
+    const car = new Vehicle(factory, scene, 'sedan', 0, 0, 0, 0);
+    car.isPlayerDriven = true;
+
+    // First frame: steering must interpolate (not snap) toward the input
+    car.update(
+      1 / 60,
+      { throttle: 0.6, steer: 1, handbrake: false, boost: false, ascend: 0, focusGrip: false },
+      [],
+      [],
+      effects,
+      0
+    );
+    expect(car.steerAngle).toBeGreaterThan(0.05);
+    expect(car.steerAngle).toBeLessThan(0.95);
+
+    // Sustained input converges to full lock
+    for (let i = 0; i < 45; i++) {
+      car.update(
+        1 / 60,
+        { throttle: 0.6, steer: 1, handbrake: false, boost: false, ascend: 0, focusGrip: false },
+        [],
+        [],
+        effects,
+        0
+      );
+    }
+    expect(car.steerAngle).toBeGreaterThan(0.97);
+
+    // Wheels spin forward with speed (visible rolling, not sliding)
+    const wheel = car.rig.wheelMeshes[0];
+    expect(wheel).toBeDefined();
+    const spinBefore = wheel.rotation.x;
+    car.update(
+      1 / 60,
+      { throttle: 0.8, steer: 0, handbrake: false, boost: false, ascend: 0, focusGrip: false },
+      [],
+      [],
+      effects,
+      0
+    );
+    expect(wheel.rotation.x).toBeGreaterThan(spinBefore);
+
+    // Body visibly rolls into sustained cornering (suspension behaviour)
+    for (let i = 0; i < 60; i++) {
+      car.update(
+        1 / 60,
+        { throttle: 0.7, steer: 0.9, handbrake: false, boost: false, ascend: 0, focusGrip: false },
+        [],
+        [],
+        effects,
+        0
+      );
+    }
+    expect(Math.abs(car.bodyRoll)).toBeGreaterThan(0.01);
+  });
+
   it('simulates proportional analog driving, steering, drifting, boost, collisions, LS Customs & explosions', () => {
     const scene = new THREE.Scene();
     const factory = makeVehicleFactory();
