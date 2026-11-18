@@ -535,7 +535,7 @@ export class UIManager {
     const note = document.createElement('div');
     note.className = 'radio-footnote';
     note.textContent =
-      'Every song is resolved through the Apple Music (iTunes Search) API and streams the moment you select it — LIVE rows are real API streams. Without internet, the built-in Reggae, Dancehall, Afro-Highlife, Gospel Trap & GH Drill instrumentals play automatically. Click "+ Import MP3s" anytime to use your own audio files (auto-matched by song title).';
+      'Every song is resolved through the Apple Music (iTunes Search) API and streams the moment you select it — LIVE rows are real API streams, and each song holds the airwaves for about two minutes. Without internet, the built-in Reggae, Dancehall, Afro-Highlife, Gospel Trap & GH Drill instrumentals play automatically. Click "+ Import MP3s" anytime to use your own audio files (auto-matched by song title).';
     deck.appendChild(note);
 
     container.appendChild(deck);

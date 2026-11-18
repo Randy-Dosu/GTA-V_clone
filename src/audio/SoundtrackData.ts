@@ -77,7 +77,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 16, null, 19, null, 16, null, 14, null, 12, null, 11, null, 7, null],
     swing: 0.06,
     keywords: ['sober'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'kweku-smoke-faith',
@@ -100,7 +100,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, null, 16, null, 14, 12, null, 14, null, 16, null, 12, null, null, null],
     swing: 0.05,
     keywords: ['faith'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'kweku-smoke-survivor',
@@ -123,7 +123,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 16, null, 19, null, 16, null, 14, null, null, 12, null, 11, null, null],
     swing: 0.04,
     keywords: ['survivor', 'survive'],
-    synthDuration: 52,
+    synthDuration: 120,
   },
   {
     id: 'kweku-smoke-hallelujah',
@@ -146,7 +146,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, 16, null, 14, null, 12, null, 16, null, 14, null, 12, null, null, null],
     swing: 0.06,
     keywords: ['hallelujah', 'halleluja'],
-    synthDuration: 56,
+    synthDuration: 120,
   },
 
   // ===================== STONEBWOY — BHIM NATION 101.9 =====================
@@ -171,7 +171,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, 17, null, 15, null, 12, 15, 14, null, 12, null, 10, null, 12, null],
     swing: 0.12,
     keywords: ['people dey', 'peopledey'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'stonebwoy-run-go',
@@ -194,7 +194,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 15, null, 17, null, 15, null, 12, null, 10, null, 12, null, 7, null],
     swing: 0.16,
     keywords: ['run go', 'rungo'],
-    synthDuration: 56,
+    synthDuration: 120,
   },
   {
     id: 'stonebwoy-send-dem-a-prayer',
@@ -217,7 +217,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 14, null, 16, null, 19, null, null, 16, 14, null, 12, null, null, null],
     swing: 0.15,
     keywords: ['send dem a prayer', 'send them a prayer', 'send dem', 'prayer'],
-    synthDuration: 56,
+    synthDuration: 120,
   },
   {
     id: 'stonebwoy-hero',
@@ -240,7 +240,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, 16, null, 14, null, 12, 14, 16, null, 14, null, 12, null, 11, null],
     swing: 0.13,
     keywords: ['hero'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'stonebwoy-jejereje',
@@ -263,7 +263,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 16, null, 19, null, 16, 14, 12, null, 14, null, 12, null, 7, null],
     swing: 0.14,
     keywords: ['jejereje', 'ginton'],
-    synthDuration: 52,
+    synthDuration: 120,
   },
 
   // ===================== KWESI ARTHUR — GROUND UP 104.7 =====================
@@ -288,7 +288,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, 15, null, 12, null, 15, null, 17, null, 19, null, 15, null, 12, null],
     swing: 0.13,
     keywords: ['anthem'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'kwesi-arthur-grind-day',
@@ -311,7 +311,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 10, null, 12, null, 15, null, 12, null, 10, null, 7, null, 10, null],
     swing: 0.11,
     keywords: ['grind day', 'grindday', 'grind'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'kwesi-arthur-baajo',
@@ -334,7 +334,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [16, null, 19, null, 21, null, 19, null, 16, null, 14, null, 12, null, null, null],
     swing: 0.15,
     keywords: ['baajo', 'joeboy'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
 
   // ===================== KOFI KINATA — EFFIAKUMA RADIO 89.1 =====================
@@ -359,7 +359,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [15, null, 17, null, 19, null, 17, null, 15, null, 12, null, 15, null, null, null],
     swing: 0.12,
     keywords: ['things fall apart', 'thingsfallapart'],
-    synthDuration: 56,
+    synthDuration: 120,
   },
   {
     id: 'kofi-kinaata-susuka',
@@ -382,7 +382,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [12, null, 15, 17, null, 19, null, 15, 12, null, 10, null, 12, null, 7, null],
     swing: 0.14,
     keywords: ['susuka'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
   {
     id: 'kofi-kinaata-behind-the-scenes',
@@ -405,7 +405,7 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     melodyB: [19, null, 17, null, 15, null, 12, null, 10, null, 12, null, 15, null, 12, null],
     swing: 0.13,
     keywords: ['behind the scenes', 'behindthescenes'],
-    synthDuration: 54,
+    synthDuration: 120,
   },
 ];
 

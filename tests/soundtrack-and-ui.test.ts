@@ -412,4 +412,44 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     expect(faith.audioUrl).toBeUndefined();
     expect(offline.getStationTracks('gold_coast').length).toBe(15);
   });
+
+  it('plays every song for about two minutes before advancing — instrumental & streamed', async () => {
+    installApiMock('none');
+
+    // 1. Built-in instrumental slot: ~120 s per song
+    const instrumental = new AudioEngine();
+    instrumental.unlock();
+    const sober = instrumental.catalog.find((s) => s.id === 'kweku-smoke-sober')!;
+    instrumental.playSongById(sober.id, sober.station, false);
+    let advancedAt = -1;
+    for (let i = 0; i < 2600; i++) {
+      instrumental.updateSoundtrack('playing', true, true, 0.05);
+      if (instrumental.getCurrentSong()?.id !== sober.id) {
+        advancedAt = i * 0.05;
+        break;
+      }
+    }
+    expect(advancedAt).toBeGreaterThan(115); // no early skipping
+    expect(advancedAt).toBeLessThan(130); // ~2 minutes
+
+    // 2. Streamed/imported audio: short preview replays until the 2-minute slot ends
+    const streamed = new AudioEngine();
+    streamed.unlock();
+    const survivor = streamed.catalog.find((s) => s.id === 'kweku-smoke-survivor')!;
+    streamed.importLocalAudioFiles([
+      new File(['audio'], 'Kweku Smoke - Survivor.mp3', { type: 'audio/mpeg' }),
+    ]);
+    expect(survivor.audioUrl).toBeDefined();
+    streamed.playSongById(survivor.id, survivor.station, false);
+    advancedAt = -1;
+    for (let i = 0; i < 2700; i++) {
+      streamed.updateSoundtrack('playing', true, true, 0.05);
+      if (streamed.getCurrentSong()?.id !== survivor.id) {
+        advancedAt = i * 0.05;
+        break;
+      }
+    }
+    expect(advancedAt).toBeGreaterThan(115);
+    expect(advancedAt).toBeLessThan(135);
+  });
 });

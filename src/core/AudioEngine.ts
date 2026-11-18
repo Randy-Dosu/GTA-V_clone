@@ -96,6 +96,10 @@ export class AudioEngine {
   private lastVehicleThrottle = 0;
   private backfireCooldown = 0;
 
+  // Radio slot length: every song holds the airwaves for about two minutes
+  private static readonly SONG_SLOT_SECONDS = 120;
+  private streamSongElapsed = 0;
+
   // HTMLAudioElement for real studio audio files (imported in-game, via public/music/manifest.json, or the music API)
   private htmlAudio: HTMLAudioElement | null = null;
   private htmlAudioSongId: string | null = null;
@@ -427,7 +431,13 @@ export class AudioEngine {
       const el = new Audio();
       el.preload = 'auto';
       el.addEventListener('ended', () => {
-        this.nextTrack(1, true);
+        // Short previews & files replay until the ~2-minute radio slot is filled
+        if (this.streamSongElapsed < AudioEngine.SONG_SLOT_SECONDS - 3) {
+          el.currentTime = 0;
+          el.play().catch(() => {});
+        } else {
+          this.nextTrack(1, true);
+        }
       });
       el.addEventListener('error', () => {
         if (this.htmlAudioSongId) {
@@ -738,8 +748,15 @@ export class AudioEngine {
       const el = this.ensureHtmlAudio();
       if (this.htmlAudioSongId !== song.id) {
         this.htmlAudioSongId = song.id;
+        this.streamSongElapsed = 0;
         el.src = song.audioUrl;
         el.currentTime = 0;
+      }
+      // ~2-minute radio slot per song: streams & files advance when the slot ends
+      this.streamSongElapsed += dt;
+      if (this.streamSongElapsed >= AudioEngine.SONG_SLOT_SECONDS) {
+        this.nextTrack(1, true);
+        return;
       }
       el.volume = Math.max(0, Math.min(1, this.masterVol * this.musicVol * targetDuck));
       if (el.paused && this.ctx && this.ctx.state === 'running') {
