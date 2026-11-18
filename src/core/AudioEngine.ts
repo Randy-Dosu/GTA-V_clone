@@ -81,6 +81,8 @@ export class AudioEngine {
     gold_coast: 0,
     bhim_fm: 0,
     scatter_fm: 0,
+    ground_up_fm: 0,
+    kinaata_fm: 0,
   };
   private stepTimer = 0;
   private stepIndex = 0;

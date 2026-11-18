@@ -47,9 +47,12 @@ export function midiToFreq(midi: number): number {
 }
 
 /**
- * Official 9-track soundtrack featuring Kweku Smoke and Stonebwoy:
+ * Official 15-track soundtrack featuring Kweku Smoke, Stonebwoy, Kwesi Arthur
+ * and Kofi Kinaata:
  * - Kweku Smoke: Sober, Faith, Survivor, Hallelujah
  * - Stonebwoy: People Dey, Run Go, Send Dem a Prayer, Hero, Jejereje
+ * - Kwesi Arthur: Anthem, Grind Day, Baajo
+ * - Kofi Kinaata: Things Fall Apart, Susuka, Behind the Scenes
  */
 export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
   // ===================== KWEKU SMOKE — SCATTER DER 96.5 =====================
@@ -262,19 +265,168 @@ export const INITIAL_SOUNDTRACK: SoundtrackSong[] = [
     keywords: ['jejereje', 'ginton'],
     synthDuration: 52,
   },
+
+  // ===================== KWESI ARTHUR — GROUND UP 104.7 =====================
+  {
+    id: 'kwesi-arthur-anthem',
+    artist: 'Kwesi Arthur',
+    title: 'Anthem',
+    vibe: 'Temani Afrobeats Anthem',
+    station: 'ground_up_fm',
+    bpm: 104,
+    style: 'afro_highlife',
+    leadInstrument: 'guitar',
+    // Bright Fm7 - Dbmaj7 - Abmaj7 - Eb highlife guitar bounce
+    chords: [
+      [53, 56, 60, 63],
+      [49, 53, 56, 60],
+      [56, 60, 63, 67],
+      [51, 55, 58, 63],
+    ],
+    bassRoots: [41, 37, 44, 39],
+    melodyA: [12, null, null, 15, 12, null, 19, null, 15, 17, null, 15, null, 12, null, null],
+    melodyB: [19, null, 15, null, 12, null, 15, null, 17, null, 19, null, 15, null, 12, null],
+    swing: 0.13,
+    keywords: ['anthem'],
+    synthDuration: 54,
+  },
+  {
+    id: 'kwesi-arthur-grind-day',
+    artist: 'Kwesi Arthur',
+    title: 'Grind Day',
+    vibe: 'Motivational GH Street Rap',
+    station: 'ground_up_fm',
+    bpm: 98,
+    style: 'afro_highlife',
+    leadInstrument: 'epiano',
+    // Hustler's Am7 - F - C - G loop with warm keys & rolling bass
+    chords: [
+      [57, 60, 64],
+      [53, 57, 60],
+      [60, 64, 67],
+      [55, 59, 62],
+    ],
+    bassRoots: [45, 41, 36, 43],
+    melodyA: [12, null, 15, null, 17, null, 12, null, 15, null, 19, null, 17, null, 15, null],
+    melodyB: [12, null, 10, null, 12, null, 15, null, 12, null, 10, null, 7, null, 10, null],
+    swing: 0.11,
+    keywords: ['grind day', 'grindday', 'grind'],
+    synthDuration: 54,
+  },
+  {
+    id: 'kwesi-arthur-baajo',
+    artist: 'Kwesi Arthur',
+    title: 'Baajo (feat. Joeboy)',
+    vibe: 'Smooth Afro-Fusion',
+    station: 'ground_up_fm',
+    bpm: 102,
+    style: 'afro_highlife',
+    leadInstrument: 'epiano',
+    // Sunlit Cmaj7 - Am7 - Dm7 - G afro-swing with silky keys
+    chords: [
+      [60, 64, 67, 71],
+      [57, 60, 64, 67],
+      [62, 65, 69, 72],
+      [55, 59, 62, 67],
+    ],
+    bassRoots: [36, 33, 38, 43],
+    melodyA: [12, null, 14, 16, null, 19, null, null, 16, null, 14, null, 12, null, 11, null],
+    melodyB: [16, null, 19, null, 21, null, 19, null, 16, null, 14, null, 12, null, null, null],
+    swing: 0.15,
+    keywords: ['baajo', 'joeboy'],
+    synthDuration: 54,
+  },
+
+  // ===================== KOFI KINATA — EFFIAKUMA RADIO 89.1 =====================
+  {
+    id: 'kofi-kinaata-things-fall-apart',
+    artist: 'Kofi Kinaata',
+    title: 'Things Fall Apart',
+    vibe: 'Fante Storytelling Highlife',
+    station: 'kinaata_fm',
+    bpm: 100,
+    style: 'afro_highlife',
+    leadInstrument: 'guitar',
+    // Reflective F#m7 - D - A - E highlife guitar with rolling Fante flow
+    chords: [
+      [54, 57, 61, 64],
+      [50, 54, 57],
+      [57, 61, 64],
+      [52, 56, 59],
+    ],
+    bassRoots: [42, 38, 45, 40],
+    melodyA: [12, null, 15, null, 12, null, 17, null, 15, null, 12, null, 10, null, 12, null],
+    melodyB: [15, null, 17, null, 19, null, 17, null, 15, null, 12, null, 15, null, null, null],
+    swing: 0.12,
+    keywords: ['things fall apart', 'thingsfallapart'],
+    synthDuration: 56,
+  },
+  {
+    id: 'kofi-kinaata-susuka',
+    artist: 'Kofi Kinaata',
+    title: 'Susuka',
+    vibe: 'Grateful Highlife Groove',
+    station: 'kinaata_fm',
+    bpm: 96,
+    style: 'afro_highlife',
+    leadInstrument: 'organ',
+    // Warm C#m7 - A - B - E highlife with gospel-tinged organ swells
+    chords: [
+      [49, 52, 56],
+      [57, 61, 64],
+      [59, 63, 66],
+      [52, 56, 59],
+    ],
+    bassRoots: [37, 33, 35, 40],
+    melodyA: [12, null, null, 15, null, 12, null, 17, 15, null, 12, null, null, 10, null, null],
+    melodyB: [12, null, 15, 17, null, 19, null, 15, 12, null, 10, null, 12, null, 7, null],
+    swing: 0.14,
+    keywords: ['susuka'],
+    synthDuration: 54,
+  },
+  {
+    id: 'kofi-kinaata-behind-the-scenes',
+    artist: 'Kofi Kinaata',
+    title: 'Behind the Scenes',
+    vibe: 'Smooth Fante Afro-Highlife',
+    station: 'kinaata_fm',
+    bpm: 104,
+    style: 'afro_highlife',
+    leadInstrument: 'epiano',
+    // Laid-back Gm7 - Eb - Bb - F silky keys & talking-drum pocket
+    chords: [
+      [55, 58, 62],
+      [51, 55, 58],
+      [58, 62, 65],
+      [53, 57, 60],
+    ],
+    bassRoots: [43, 39, 46, 41],
+    melodyA: [12, null, 15, null, 17, null, 15, null, 12, null, 15, null, 19, null, 17, null],
+    melodyB: [19, null, 17, null, 15, null, 12, null, 10, null, 12, null, 15, null, 12, null],
+    swing: 0.13,
+    keywords: ['behind the scenes', 'behindthescenes'],
+    synthDuration: 54,
+  },
 ];
 
 /**
- * Alternating Stonebwoy & Kweku Smoke rotation on Gold Coast FM covering all 9 tracks.
+ * Alternating Stonebwoy, Kweku Smoke, Kwesi Arthur & Kofi Kinaata rotation on
+ * Gold Coast FM covering all 15 tracks.
  */
 export const GOLD_COAST_ROTATION_IDS: string[] = [
   'stonebwoy-people-dey',
   'kweku-smoke-sober',
+  'kwesi-arthur-anthem',
+  'kofi-kinaata-things-fall-apart',
   'stonebwoy-jejereje',
   'kweku-smoke-hallelujah',
+  'kwesi-arthur-baajo',
+  'kofi-kinaata-susuka',
   'stonebwoy-run-go',
   'kweku-smoke-faith',
   'stonebwoy-hero',
+  'kwesi-arthur-grind-day',
+  'kofi-kinaata-behind-the-scenes',
   'kweku-smoke-survivor',
   'stonebwoy-send-dem-a-prayer',
 ];

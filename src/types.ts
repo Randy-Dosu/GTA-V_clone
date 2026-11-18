@@ -104,6 +104,8 @@ export type RadioStationId =
   | 'gold_coast'
   | 'bhim_fm'
   | 'scatter_fm'
+  | 'ground_up_fm'
+  | 'kinaata_fm'
   | 'off';
 
 export interface RadioStation {
@@ -573,8 +575,8 @@ export const RADIO_STATIONS: RadioStation[] = [
     id: 'gold_coast',
     name: 'Gold Coast FM',
     shortLabel: 'GOLD',
-    genre: 'Stonebwoy & Kweku Smoke Mix',
-    host: 'All 9 Anthems',
+    genre: 'Stonebwoy, Kweku Smoke & Kwesi Arthur Mix',
+    host: 'All 12 Anthems',
     track: 'Stonebwoy — People Dey',
     color: '#fbbf24',
     bpm: 98,
@@ -598,6 +600,26 @@ export const RADIO_STATIONS: RadioStation[] = [
     track: 'Kweku Smoke — Sober',
     color: '#f87171',
     bpm: 130,
+  },
+  {
+    id: 'ground_up_fm',
+    name: 'Ground Up 104.7',
+    shortLabel: 'GRND',
+    genre: 'Ghanaian Hip-Hop & Afrobeats',
+    host: 'Kwesi Arthur Radio',
+    track: 'Kwesi Arthur — Anthem',
+    color: '#a78bfa',
+    bpm: 104,
+  },
+  {
+    id: 'kinaata_fm',
+    name: 'Effiakuma Radio 89.1',
+    shortLabel: 'KINA',
+    genre: 'Fante Highlife & Storytelling Rap',
+    host: 'Kofi Kinaata Radio',
+    track: 'Kofi Kinaata — Things Fall Apart',
+    color: '#38bdf8',
+    bpm: 100,
   },
   {
     id: 'off',

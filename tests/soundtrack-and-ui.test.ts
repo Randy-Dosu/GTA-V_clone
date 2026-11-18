@@ -78,8 +78,8 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     globalThis.fetch = originalFetch;
   });
 
-  it('contains the exact 9 requested Kweku Smoke and Stonebwoy songs with valid musical data', () => {
-    expect(INITIAL_SOUNDTRACK.length).toBe(9);
+  it('contains the exact 15 requested songs by Stonebwoy, Kweku Smoke, Kwesi Arthur & Kofi Kinaata', () => {
+    expect(INITIAL_SOUNDTRACK.length).toBe(15);
 
     const kwekuTitles = INITIAL_SOUNDTRACK.filter((s) => s.artist === 'Kweku Smoke').map(
       (s) => s.title
@@ -97,8 +97,18 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
       'Jejereje (feat. Ginton)',
     ]);
 
-    // Gold Coast FM alternates through all 9 unique song IDs
-    expect(new Set(GOLD_COAST_ROTATION_IDS).size).toBe(9);
+    const kwesiTitles = INITIAL_SOUNDTRACK.filter((s) => s.artist === 'Kwesi Arthur').map(
+      (s) => s.title
+    );
+    expect(kwesiTitles).toEqual(['Anthem', 'Grind Day', 'Baajo (feat. Joeboy)']);
+
+    const kinaataTitles = INITIAL_SOUNDTRACK.filter((s) => s.artist === 'Kofi Kinaata').map(
+      (s) => s.title
+    );
+    expect(kinaataTitles).toEqual(['Things Fall Apart', 'Susuka', 'Behind the Scenes']);
+
+    // Gold Coast FM alternates through all 15 unique song IDs across all four artists
+    expect(new Set(GOLD_COAST_ROTATION_IDS).size).toBe(15);
     const idSet = new Set(INITIAL_SOUNDTRACK.map((s) => s.id));
     for (const id of GOLD_COAST_ROTATION_IDS) {
       expect(idSet.has(id)).toBe(true);
@@ -123,7 +133,9 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     expect(audio.currentStation).toBe('gold_coast');
     expect(audio.getStationTracks('bhim_fm').length).toBe(5);
     expect(audio.getStationTracks('scatter_fm').length).toBe(4);
-    expect(audio.getStationTracks('gold_coast').length).toBe(9);
+    expect(audio.getStationTracks('ground_up_fm').length).toBe(3);
+    expect(audio.getStationTracks('kinaata_fm').length).toBe(3);
+    expect(audio.getStationTracks('gold_coast').length).toBe(15);
 
     // Step the procedural sequencer across every single song & style without error
     for (const song of audio.catalog) {
@@ -287,9 +299,9 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     ui.setWeaponWheel(false, player);
 
     ui.setRadioWheel(true);
-    expect(RADIO_STATIONS.length).toBe(4);
-    ui.updateRadioWheelCursor(120, 0); // selects BHIM Nation 101.9 (East slot)
-    expect(audio.currentStation).toBe('bhim_fm');
+    expect(RADIO_STATIONS.length).toBe(6); // 5 stations + Radio Off
+    ui.updateRadioWheelCursor(120, 0); // East slot with 6 stations rounds to index 2 (Scatter Der)
+    expect(audio.currentStation).toBe('scatter_fm');
     ui.setRadioWheel(false);
     audio.setStation('gold_coast', false); // back to Gold Coast FM (all 9 tracks)
 
@@ -312,11 +324,11 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     expect(document.getElementById('phone-screen')!.textContent).toContain('Sober');
     ui.togglePhone(false);
 
-    // Pause menu + Radio tab renders all 9 tracks
+    // Pause menu + Radio tab renders all 15 tracks
     ui.setMode('paused', player, missions, minimap, 17.0);
     ui.selectPauseTab('radio');
     const radioTracks = document.querySelectorAll('#pause-radio-content .radio-track-btn');
-    expect(radioTracks.length).toBe(9);
+    expect(radioTracks.length).toBe(15);
     ui.selectPauseTab('controls');
     ui.selectPauseTab('settings');
 
@@ -398,6 +410,6 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     const failed = await offline.ensureApiAudio(faith);
     expect(failed).toBeNull();
     expect(faith.audioUrl).toBeUndefined();
-    expect(offline.getStationTracks('gold_coast').length).toBe(9);
+    expect(offline.getStationTracks('gold_coast').length).toBe(15);
   });
 });
