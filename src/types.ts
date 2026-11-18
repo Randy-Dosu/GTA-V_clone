@@ -25,6 +25,10 @@ export interface CharacterProfile {
   secondaryTopColor: number;
   pantsColor: number;
   shoeColor: number;
+  hairStyle?: 'short' | 'long' | 'bald' | 'cap' | 'beanie' | 'ponytail' | 'afro' | 'mohawk';
+  outfit?: 'tee' | 'hoodie' | 'jacket' | 'suit' | 'police' | 'athletic';
+  bodyType?: 'slim' | 'average' | 'heavy' | 'athletic';
+  beard?: boolean;
   defaultSpawn: THREE.Vector3;
   defaultHeading: number;
   signatureVehicle: VehicleKind;
@@ -193,6 +197,10 @@ export const CHARACTER_PROFILES: Record<CharacterId, CharacterProfile> = {
     secondaryTopColor: 0xf0f4f7,
     pantsColor: 0x26354a,
     shoeColor: 0xeaeef2,
+    hairStyle: 'short',
+    outfit: 'tee',
+    bodyType: 'athletic',
+    beard: false,
     defaultSpawn: new THREE.Vector3(-18, 0.14, 18),
     defaultHeading: Math.PI,
     signatureVehicle: 'supercar',
@@ -212,6 +220,10 @@ export const CHARACTER_PROFILES: Record<CharacterId, CharacterProfile> = {
     secondaryTopColor: 0xeceff4,
     pantsColor: 0x23272e,
     shoeColor: 0x17181a,
+    hairStyle: 'short',
+    outfit: 'suit',
+    bodyType: 'average',
+    beard: true,
     defaultSpawn: new THREE.Vector3(-126, 0.14, -92),
     defaultHeading: 0,
     signatureVehicle: 'sedan',
@@ -231,6 +243,10 @@ export const CHARACTER_PROFILES: Record<CharacterId, CharacterProfile> = {
     secondaryTopColor: 0xc2bcb0,
     pantsColor: 0x454a3d,
     shoeColor: 0x3d291a,
+    hairStyle: 'long',
+    outfit: 'jacket',
+    bodyType: 'heavy',
+    beard: true,
     defaultSpawn: new THREE.Vector3(126, 0.14, 126),
     defaultHeading: -Math.PI * 0.5,
     signatureVehicle: 'suv',

@@ -76,6 +76,11 @@ export class Player {
         secondaryTop: p.secondaryTopColor,
         pants: p.pantsColor,
         shoes: p.shoeColor,
+        hairStyle: p.hairStyle,
+        outfit: p.outfit,
+        bodyType: p.bodyType,
+        beard: p.beard,
+        detail: 'full',
       },
       true
     );
@@ -143,6 +148,7 @@ export class Player {
       secondaryTop: p.secondaryTopColor,
       pants: p.pantsColor,
       shoes: p.shoeColor,
+      beard: p.beard,
     });
 
     const spot = this.savedSpots[newId];

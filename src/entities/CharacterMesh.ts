@@ -1,6 +1,20 @@
 import * as THREE from 'three';
 import { WeaponId } from '../types';
 
+export type HairStyle =
+  | 'short'
+  | 'long'
+  | 'bald'
+  | 'cap'
+  | 'beanie'
+  | 'ponytail'
+  | 'afro'
+  | 'mohawk';
+
+export type OutfitStyle = 'tee' | 'hoodie' | 'jacket' | 'suit' | 'police' | 'athletic';
+
+export type BodyType = 'slim' | 'average' | 'heavy' | 'athletic';
+
 export interface CharacterColors {
   skin: number;
   hair: number;
@@ -11,6 +25,152 @@ export interface CharacterColors {
   isPolice?: boolean;
   hasSunglasses?: boolean;
   baldTop?: boolean;
+  hairStyle?: HairStyle;
+  outfit?: OutfitStyle;
+  bodyType?: BodyType;
+  beard?: boolean;
+  detail?: 'full' | 'simple';
+}
+
+const BODY_SCALES: Record<BodyType, { torso: number; limbs: number; shoulders: number; hips: number }> = {
+  slim: { torso: 0.84, limbs: 0.8, shoulders: 0.88, hips: 0.9 },
+  average: { torso: 1.0, limbs: 1.0, shoulders: 1.0, hips: 1.0 },
+  heavy: { torso: 1.24, limbs: 1.08, shoulders: 1.06, hips: 1.18 },
+  athletic: { torso: 1.06, limbs: 1.0, shoulders: 1.12, hips: 0.98 },
+};
+
+/** Paint a human face onto a canvas texture (face centered at u = 0.25 → +Z front of sphere). */
+function makeFaceTexture(skinHex: number, beard: boolean): THREE.CanvasTexture {
+  const size = 256;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d')!;
+  const skin = new THREE.Color(skinHex);
+  const css = (col: THREE.Color, mul: number) =>
+    `rgb(${(col.r * 255 * mul) | 0},${(col.g * 255 * mul) | 0},${(col.b * 255 * mul) | 0})`;
+
+  // Base skin with soft vertical shading (forehead lighter, jaw slightly darker)
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, css(skin, 1.06));
+  grad.addColorStop(0.55, css(skin, 1.0));
+  grad.addColorStop(1, css(skin, 0.88));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Subtle skin noise
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,235,220,0.05)' : 'rgba(40,20,10,0.05)';
+    ctx.fillRect(Math.random() * size, Math.random() * size, 2, 2);
+  }
+
+  const fx = size * 0.25; // face center on sphere front
+  const eyeY = size * 0.44;
+  const eyeDX = size * 0.115;
+  const mouthY = size * 0.72;
+
+  // Cheek blush / warmth
+  for (const s of [-1, 1]) {
+    const blush = ctx.createRadialGradient(
+      fx + s * eyeDX * 1.5, eyeY + size * 0.1, 2,
+      fx + s * eyeDX * 1.5, eyeY + size * 0.1, size * 0.09
+    );
+    blush.addColorStop(0, 'rgba(200,110,90,0.16)');
+    blush.addColorStop(1, 'rgba(200,110,90,0)');
+    ctx.fillStyle = blush;
+    ctx.fillRect(0, 0, size, size);
+  }
+
+  // Beard / stubble (jaw + upper lip)
+  if (beard) {
+    ctx.fillStyle = 'rgba(35,26,20,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(fx, mouthY + size * 0.09, size * 0.16, size * 0.11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 500; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random();
+      const bx = fx + Math.cos(a) * size * 0.16 * r;
+      const by = mouthY + size * 0.09 + Math.sin(a) * size * 0.11 * r;
+      if (by > mouthY - 4) {
+        ctx.fillStyle = 'rgba(25,18,14,0.55)';
+        ctx.fillRect(bx, by, 2, 2);
+      }
+    }
+    // Mustache
+    ctx.fillStyle = 'rgba(30,22,17,0.75)';
+    ctx.beginPath();
+    ctx.ellipse(fx, mouthY - size * 0.035, size * 0.075, size * 0.022, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Eyebrows
+  ctx.strokeStyle = 'rgba(30,22,16,0.9)';
+  ctx.lineWidth = size * 0.022;
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(fx + s * eyeDX - size * 0.055, eyeY - size * 0.085);
+    ctx.quadraticCurveTo(
+      fx + s * eyeDX, eyeY - size * 0.115,
+      fx + s * eyeDX + size * 0.055, eyeY - size * 0.08
+    );
+    ctx.stroke();
+  }
+
+  // Eyes (sclera, iris, pupil, highlight, upper lid line)
+  for (const s of [-1, 1]) {
+    const ex = fx + s * eyeDX;
+    ctx.fillStyle = '#f4efe8';
+    ctx.beginPath();
+    ctx.ellipse(ex, eyeY, size * 0.042, size * 0.026, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#4a3220';
+    ctx.beginPath();
+    ctx.arc(ex, eyeY, size * 0.016, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#14100c';
+    ctx.beginPath();
+    ctx.arc(ex, eyeY, size * 0.008, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(ex - size * 0.005, eyeY - size * 0.005, size * 0.004, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(40,26,18,0.85)';
+    ctx.lineWidth = size * 0.008;
+    ctx.beginPath();
+    ctx.moveTo(ex - size * 0.045, eyeY - size * 0.012);
+    ctx.quadraticCurveTo(ex, eyeY - size * 0.035, ex + size * 0.045, eyeY - size * 0.012);
+    ctx.stroke();
+  }
+
+  // Nose (soft shadow + highlight bridge)
+  ctx.fillStyle = 'rgba(60,35,22,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(fx, eyeY + size * 0.11, size * 0.028, size * 0.055, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,240,225,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(fx - size * 0.012, eyeY + size * 0.07, size * 0.012, size * 0.045, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Mouth (lips)
+  ctx.fillStyle = 'rgba(150,80,75,0.85)';
+  ctx.beginPath();
+  ctx.ellipse(fx, mouthY, size * 0.062, size * 0.02, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(70,35,30,0.9)';
+  ctx.lineWidth = size * 0.01;
+  ctx.beginPath();
+  ctx.moveTo(fx - size * 0.06, mouthY);
+  ctx.quadraticCurveTo(fx, mouthY + size * 0.014, fx + size * 0.06, mouthY);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
 }
 
 export class CharacterRig {
@@ -23,6 +183,10 @@ export class CharacterRig {
   public leftLeg = new THREE.Group();
   public rightLeg = new THREE.Group();
   public handSocket = new THREE.Group();
+  public leftElbow = new THREE.Group();
+  public rightElbow = new THREE.Group();
+  public leftKnee = new THREE.Group();
+  public rightKnee = new THREE.Group();
 
   private skinMat: THREE.MeshStandardMaterial;
   private hairMat: THREE.MeshStandardMaterial;
@@ -30,6 +194,9 @@ export class CharacterRig {
   private subTopMat: THREE.MeshStandardMaterial;
   private pantsMat: THREE.MeshStandardMaterial;
   private shoeMat: THREE.MeshStandardMaterial;
+  private faceMat: THREE.MeshStandardMaterial;
+  private beard: boolean;
+  private skinHex: number;
 
   private weaponMeshes: Partial<Record<WeaponId, THREE.Object3D>> = {};
   private currentWeapon: WeaponId = 'unarmed';
@@ -38,15 +205,26 @@ export class CharacterRig {
   private recoilTimer = 0;
 
   constructor(colors: CharacterColors, withWeapons = false) {
-    this.skinMat = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.65 });
-    this.hairMat = new THREE.MeshStandardMaterial({ color: colors.hair, roughness: 0.8 });
-    this.topMat = new THREE.MeshStandardMaterial({ color: colors.top, roughness: 0.72 });
+    const body = BODY_SCALES[colors.bodyType ?? 'average'];
+    const full = (colors.detail ?? 'full') === 'full';
+    const outfit: OutfitStyle = colors.isPolice ? 'police' : (colors.outfit ?? 'tee');
+    const hairStyle: HairStyle = colors.baldTop ? 'bald' : (colors.hairStyle ?? 'short');
+    this.beard = colors.beard ?? false;
+    this.skinHex = colors.skin;
+
+    this.skinMat = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.62 });
+    this.hairMat = new THREE.MeshStandardMaterial({ color: colors.hair, roughness: 0.85 });
+    this.topMat = new THREE.MeshStandardMaterial({ color: colors.top, roughness: 0.78 });
     this.subTopMat = new THREE.MeshStandardMaterial({
       color: colors.secondaryTop ?? colors.top,
-      roughness: 0.68,
+      roughness: 0.72,
     });
-    this.pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, roughness: 0.82 });
-    this.shoeMat = new THREE.MeshStandardMaterial({ color: colors.shoes, roughness: 0.6 });
+    this.pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, roughness: 0.84 });
+    this.shoeMat = new THREE.MeshStandardMaterial({ color: colors.shoes, roughness: 0.55 });
+    this.faceMat = new THREE.MeshStandardMaterial({
+      map: makeFaceTexture(colors.skin, this.beard),
+      roughness: 0.6,
+    });
 
     // Ground contact shadow blob for crisp grounded feel even outside shadow cascade
     const contactShadow = new THREE.Mesh(
@@ -61,32 +239,94 @@ export class CharacterRig {
     contactShadow.position.y = 0.025;
     this.root.add(contactShadow);
 
-    // Hips at 0.90m height (total standing character height ~1.82m)
-    this.hips.position.y = 0.9;
+    // Hips at 0.92m height (total standing character height ~1.82m)
+    this.hips.position.y = 0.92;
     this.root.add(this.hips);
 
-    // Pelvis belt block
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.24), this.pantsMat);
+    // Pelvis — tapered cylinder reads as hips rather than a box
+    const pelvis = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.19 * body.hips, 0.17 * body.hips, 0.22, 10),
+      this.pantsMat
+    );
+    pelvis.castShadow = true;
     this.hips.add(pelvis);
 
-    // Torso (jacket/shirt + inner shirt front detail + collar)
-    this.torso.position.y = 0.08;
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.54, 0.26), this.topMat);
-    chest.position.y = 0.27;
+    // Torso — tapered cylinder: waist narrower than shoulders
+    this.torso.position.y = 0.1;
+    const shoulderW = 0.21 * body.shoulders;
+    const chest = new THREE.Mesh(
+      new THREE.CylinderGeometry(shoulderW, 0.155 * body.torso, 0.56, 12),
+      this.topMat
+    );
+    chest.position.y = 0.28;
     chest.castShadow = true;
-    const innerShirt = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.46, 0.275), this.subTopMat);
+    this.torso.add(chest);
+
+    // Inner shirt / undershirt front panel
+    const innerShirt = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.185 * body.shoulders, 0.145 * body.torso, 0.5, 10, 1, true, -0.55, 1.1),
+      this.subTopMat
+    );
     innerShirt.position.y = 0.28;
-    this.torso.add(chest, innerShirt);
+    this.torso.add(innerShirt);
+
+    // Collar ring
+    const collar = new THREE.Mesh(
+      new THREE.TorusGeometry(0.105 * body.shoulders, 0.022, 6, 14).rotateX(Math.PI / 2),
+      this.subTopMat
+    );
+    collar.position.y = 0.56;
+    this.torso.add(collar);
+
+    if (outfit === 'suit') {
+      // Tie + white shirt front
+      const tie = new THREE.Mesh(
+        new THREE.BoxGeometry(0.055, 0.34, 0.02),
+        new THREE.MeshStandardMaterial({ color: 0x7f1d2d, roughness: 0.5 })
+      );
+      tie.position.set(0, 0.38, 0.185 * body.shoulders);
+      tie.rotation.x = 0.06;
+      const shirtFront = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.19 * body.shoulders, 0.15 * body.torso, 0.52, 10, 1, true, -0.5, 1.0),
+        new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.7 })
+      );
+      shirtFront.position.y = 0.28;
+      this.torso.add(shirtFront, tie);
+    }
+
+    if (outfit === 'jacket') {
+      // Open jacket front panels
+      const jacketMat = new THREE.MeshStandardMaterial({ color: colors.top, roughness: 0.7 });
+      for (const s of [-1, 1]) {
+        const panel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.2 * body.shoulders, 0.155 * body.torso, 0.54, 8, 1, true, s > 0 ? -0.15 : Math.PI - 0.75, 0.75),
+          jacketMat
+        );
+        panel.position.y = 0.28;
+        this.torso.add(panel);
+      }
+    }
+
+    if (outfit === 'hoodie') {
+      // Hood bump resting on upper back
+      const hood = new THREE.Mesh(
+        new THREE.SphereGeometry(0.11 * body.shoulders, 10, 8),
+        this.topMat
+      );
+      hood.scale.set(1.2, 0.7, 0.8);
+      hood.position.set(0, 0.52, -0.14 * body.shoulders);
+      this.torso.add(hood);
+    }
 
     if (colors.isPolice) {
       // Gold LSPD chest badge & utility belt
       const badge = new THREE.Mesh(
-        new THREE.BoxGeometry(0.07, 0.08, 0.02),
+        new THREE.BoxGeometry(0.06, 0.07, 0.02),
         new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.2 })
       );
-      badge.position.set(-0.13, 0.4, 0.14);
+      badge.position.set(-0.1 * body.shoulders, 0.42, 0.17 * body.shoulders);
       const belt = new THREE.Mesh(
-        new THREE.BoxGeometry(0.45, 0.07, 0.265),
+        new THREE.CylinderGeometry(0.175 * body.torso, 0.175 * body.torso, 0.07, 12),
         new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.4 })
       );
       belt.position.y = 0.02;
@@ -95,81 +335,217 @@ export class CharacterRig {
 
     this.hips.add(this.torso);
 
-    // Head, neck, hair, aviators
-    this.head.position.y = 0.56;
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.12, 8), this.skinMat);
-    neck.position.y = 0.04;
-    const skull = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.28, 0.26), this.skinMat);
-    skull.position.y = 0.2;
+    // Head, neck, face, hair, aviators
+    this.head.position.y = 0.58;
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.055, 0.065, 0.12, 8),
+      this.skinMat
+    );
+    neck.position.y = 0.02;
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.125, 18, 14), this.faceMat);
+    skull.scale.set(0.92, 1.06, 0.98);
+    skull.position.y = 0.17;
     skull.castShadow = true;
+    this.head.add(neck, skull);
 
-    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.268, 0.11, 0.275), this.hairMat);
-    hair.position.set(0, 0.31, -0.01);
-    const hairBack = new THREE.Mesh(new THREE.BoxGeometry(0.265, 0.18, 0.08), this.hairMat);
-    hairBack.position.set(0, 0.22, -0.11);
-    this.head.add(neck, skull, hair, hairBack);
+    if (full) {
+      // Ears
+      for (const s of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), this.skinMat);
+        ear.scale.set(0.5, 1.0, 0.7);
+        ear.position.set(s * 0.115, 0.17, 0);
+        this.head.add(ear);
+      }
+    }
+
+    this.buildHair(hairStyle, body);
 
     if (colors.isPolice) {
       // LSPD peaked patrol cap
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.15, 0.09, 12), this.topMat);
-      cap.position.y = 0.36;
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.125, 0.075, 14), this.topMat);
+      cap.position.y = 0.27;
       const visor = new THREE.Mesh(
-        new THREE.BoxGeometry(0.22, 0.025, 0.14),
+        new THREE.BoxGeometry(0.19, 0.02, 0.11),
         new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 })
       );
-      visor.position.set(0, 0.32, 0.13);
+      visor.position.set(0, 0.235, 0.12);
       this.head.add(cap, visor);
     } else if (colors.hasSunglasses) {
       const shades = new THREE.Mesh(
-        new THREE.BoxGeometry(0.23, 0.06, 0.04),
+        new THREE.BoxGeometry(0.2, 0.05, 0.03),
         new THREE.MeshStandardMaterial({ color: 0x111318, metalness: 0.8, roughness: 0.15 })
       );
-      shades.position.set(0, 0.22, 0.13);
+      shades.position.set(0, 0.19, 0.115);
       this.head.add(shades);
     }
 
     this.torso.add(this.head);
 
-    // Articulated Left & Right Arms (shoulder pivot)
-    const buildArm = (side: -1 | 1): THREE.Group => {
+    // Articulated arms: shoulder pivot → upper arm → elbow pivot → forearm + hand
+    const buildArm = (side: -1 | 1): { arm: THREE.Group; elbow: THREE.Group } => {
       const arm = new THREE.Group();
-      arm.position.set(side * 0.3, 0.49, 0);
-      const sleeve = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.15), this.topMat);
-      sleeve.position.y = -0.12;
-      sleeve.castShadow = true;
-      const forearm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.28, 0.12), this.skinMat);
-      forearm.position.y = -0.38;
-      arm.add(sleeve, forearm);
-      return arm;
+      arm.position.set(side * 0.24 * body.shoulders, 0.5, 0);
+      const upperLen = 0.27;
+      const upper = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055 * body.limbs, 0.05 * body.limbs, upperLen, 8),
+        outfit === 'tee' || outfit === 'athletic' ? this.topMat : this.topMat
+      );
+      upper.position.y = -upperLen * 0.5;
+      upper.castShadow = true;
+      arm.add(upper);
+
+      const elbow = new THREE.Group();
+      elbow.position.y = -upperLen;
+      const foreLen = 0.25;
+      const forearm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.047 * body.limbs, 0.04 * body.limbs, foreLen, 8),
+        outfit === 'tee' || outfit === 'athletic' ? this.skinMat : this.topMat
+      );
+      forearm.position.y = -foreLen * 0.5;
+      forearm.castShadow = true;
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.045 * body.limbs, 8, 6), this.skinMat);
+      hand.scale.set(0.8, 1.15, 0.9);
+      hand.position.y = -foreLen - 0.04;
+      elbow.add(forearm, hand);
+      arm.add(elbow);
+      return { arm, elbow };
     };
 
     // Local +Z is forward, +Y is up => character's left is +X, right is -X
-    this.leftArm = buildArm(1);
-    this.rightArm = buildArm(-1);
-    this.handSocket.position.set(0, -0.5, 0.08);
-    this.rightArm.add(this.handSocket);
+    const left = buildArm(1);
+    const right = buildArm(-1);
+    this.leftArm = left.arm;
+    this.leftElbow = left.elbow;
+    this.rightArm = right.arm;
+    this.rightElbow = right.elbow;
+    this.handSocket.position.set(0, -0.56, 0.06);
+    this.rightElbow.add(this.handSocket);
     this.torso.add(this.leftArm, this.rightArm);
 
-    // Articulated Left & Right Legs (hip pivot)
-    const buildLeg = (side: -1 | 1): THREE.Group => {
+    // Articulated legs: hip pivot → thigh → knee pivot → shin + shoe
+    const buildLeg = (side: -1 | 1): { leg: THREE.Group; knee: THREE.Group } => {
       const leg = new THREE.Group();
-      leg.position.set(side * 0.12, -0.04, 0);
-      const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.74, 0.18), this.pantsMat);
-      thigh.position.y = -0.38;
+      leg.position.set(side * 0.105 * body.hips, -0.06, 0);
+      const thighLen = 0.4;
+      const thigh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.075 * body.limbs, 0.06 * body.limbs, thighLen, 8),
+        this.pantsMat
+      );
+      thigh.position.y = -thighLen * 0.5;
       thigh.castShadow = true;
-      const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.175, 0.12, 0.27), this.shoeMat);
-      shoe.position.set(0, -0.8, 0.045);
-      leg.add(thigh, shoe);
-      return leg;
+      leg.add(thigh);
+
+      const knee = new THREE.Group();
+      knee.position.y = -thighLen;
+      const shinLen = 0.4;
+      const shin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055 * body.limbs, 0.045 * body.limbs, shinLen, 8),
+        this.pantsMat
+      );
+      shin.position.y = -shinLen * 0.5;
+      shin.castShadow = true;
+      const shoe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.09 * body.limbs, 0.09, 0.24),
+        this.shoeMat
+      );
+      shoe.position.set(0, -shinLen - 0.03, 0.05);
+      knee.add(shin, shoe);
+      leg.add(knee);
+      return { leg, knee };
     };
 
-    this.leftLeg = buildLeg(1);
-    this.rightLeg = buildLeg(-1);
+    const leftLeg = buildLeg(1);
+    const rightLeg = buildLeg(-1);
+    this.leftLeg = leftLeg.leg;
+    this.leftKnee = leftLeg.knee;
+    this.rightLeg = rightLeg.leg;
+    this.rightKnee = rightLeg.knee;
     this.hips.add(this.leftLeg, this.rightLeg);
 
     if (withWeapons) {
       this.buildWeaponModels();
     }
+  }
+
+  private buildHair(style: HairStyle, body: { shoulders: number }): void {
+    const r = 0.128;
+    const add = (mesh: THREE.Mesh) => {
+      mesh.castShadow = true;
+      this.head.add(mesh);
+    };
+
+    switch (style) {
+      case 'bald':
+        break;
+      case 'cap': {
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.132, 0.128, 0.09, 14), this.hairMat);
+        cap.position.y = 0.26;
+        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.018, 0.12), this.hairMat);
+        brim.position.set(0, 0.225, 0.14);
+        add(cap);
+        add(brim);
+        break;
+      }
+      case 'beanie': {
+        const beanie = new THREE.Mesh(new THREE.SphereGeometry(r * 1.02, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), this.hairMat);
+        beanie.scale.set(0.95, 0.8, 1.0);
+        beanie.position.y = 0.19;
+        const band = new THREE.Mesh(new THREE.TorusGeometry(r * 0.98, 0.022, 6, 16).rotateX(Math.PI / 2), this.hairMat);
+        band.position.y = 0.235;
+        add(beanie);
+        add(band);
+        break;
+      }
+      case 'afro': {
+        const afro = new THREE.Mesh(new THREE.SphereGeometry(r * 1.35, 14, 10), this.hairMat);
+        afro.scale.set(1.0, 0.85, 1.0);
+        afro.position.y = 0.24;
+        add(afro);
+        break;
+      }
+      case 'mohawk': {
+        const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.09, 0.26), this.hairMat);
+        ridge.position.set(0, 0.3, -0.01);
+        add(ridge);
+        break;
+      }
+      case 'long': {
+        const top = new THREE.Mesh(new THREE.SphereGeometry(r * 1.03, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), this.hairMat);
+        top.scale.set(0.95, 0.85, 1.0);
+        top.position.y = 0.19;
+        const back = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.07), this.hairMat);
+        back.position.set(0, 0.08, -0.09);
+        const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.16), this.hairMat);
+        sideL.position.set(-0.11, 0.1, 0);
+        const sideR = sideL.clone();
+        sideR.position.x = 0.11;
+        add(top);
+        add(back);
+        add(sideL);
+        add(sideR);
+        break;
+      }
+      case 'ponytail': {
+        const top = new THREE.Mesh(new THREE.SphereGeometry(r * 1.03, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), this.hairMat);
+        top.scale.set(0.95, 0.85, 1.0);
+        top.position.y = 0.19;
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.055, 0.3, 8), this.hairMat);
+        tail.position.set(0, 0.12, -0.14);
+        tail.rotation.x = 0.35;
+        add(top);
+        add(tail);
+        break;
+      }
+      case 'short':
+      default: {
+        const crop = new THREE.Mesh(new THREE.SphereGeometry(r * 1.03, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), this.hairMat);
+        crop.scale.set(0.95, 0.8, 1.0);
+        crop.position.y = 0.2;
+        add(crop);
+        break;
+      }
+    }
+    void body;
   }
 
   public applyPalette(colors: CharacterColors): void {
@@ -179,6 +555,14 @@ export class CharacterRig {
     this.subTopMat.color.setHex(colors.secondaryTop ?? colors.top);
     this.pantsMat.color.setHex(colors.pants);
     this.shoeMat.color.setHex(colors.shoes);
+    if (colors.skin !== this.skinHex) {
+      this.skinHex = colors.skin;
+      this.beard = colors.beard ?? this.beard;
+      const old = this.faceMat.map;
+      this.faceMat.map = makeFaceTexture(colors.skin, this.beard);
+      this.faceMat.needsUpdate = true;
+      old?.dispose();
+    }
   }
 
   private buildWeaponModels(): void {
@@ -262,6 +646,10 @@ export class CharacterRig {
       this.rightArm.rotation.set(0, 0, -0.65);
       this.leftLeg.rotation.set(0, 0, -0.2);
       this.rightLeg.rotation.set(0, 0, 0.25);
+      this.leftElbow.rotation.x = 0.4;
+      this.rightElbow.rotation.x = 0.4;
+      this.leftKnee.rotation.x = 0.3;
+      this.rightKnee.rotation.x = 0.3;
       return;
     }
 
@@ -274,31 +662,48 @@ export class CharacterRig {
       const swing = Math.sin(this.walkPhase) * (isSprinting ? 0.72 : 0.48) * Math.min(1, speedRatio);
       const bob = Math.abs(Math.cos(this.walkPhase)) * (isSprinting ? 0.055 : 0.03);
 
-      this.hips.position.y = 0.9 + bob;
+      this.hips.position.y = 0.92 + bob;
       this.leftLeg.rotation.x = swing;
       this.rightLeg.rotation.x = -swing;
+      // Knees bend when the leg swings back / lifts
+      this.leftKnee.rotation.x = Math.max(0, -swing) * 0.9 + (isSprinting ? 0.25 : 0.08);
+      this.rightKnee.rotation.x = Math.max(0, swing) * 0.9 + (isSprinting ? 0.25 : 0.08);
       this.leftArm.rotation.x = -swing * 0.85;
       this.rightArm.rotation.x = swing * 0.85;
+      // Elbows stay slightly bent while walking
+      this.leftElbow.rotation.x = -0.25 - Math.abs(swing) * 0.3;
+      this.rightElbow.rotation.x = -0.25 - Math.abs(swing) * 0.3;
       this.torso.rotation.x = isSprinting ? 0.14 : 0.04;
       this.torso.rotation.y = -swing * 0.1;
+      this.head.rotation.x = Math.sin(this.walkPhase * 2) * 0.03;
     } else if (!isGrounded) {
-      this.hips.position.y = 0.92;
+      this.hips.position.y = 0.94;
       this.leftLeg.rotation.x = 0.35;
       this.rightLeg.rotation.x = -0.28;
+      this.leftKnee.rotation.x = 0.55;
+      this.rightKnee.rotation.x = 0.4;
       this.leftArm.rotation.x = -0.45;
       this.rightArm.rotation.x = -0.35;
+      this.leftElbow.rotation.x = -0.4;
+      this.rightElbow.rotation.x = -0.4;
       this.torso.rotation.x = 0.08;
+      this.head.rotation.x = 0;
     } else {
       // Subtle idle breathing
       this.walkPhase += dt * 2.0;
       const breath = Math.sin(this.walkPhase) * 0.012;
-      this.hips.position.y = 0.9 + breath;
+      this.hips.position.y = 0.92 + breath;
       this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, dt * 10);
       this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, dt * 10);
+      this.leftKnee.rotation.x = THREE.MathUtils.lerp(this.leftKnee.rotation.x, 0.04, dt * 10);
+      this.rightKnee.rotation.x = THREE.MathUtils.lerp(this.rightKnee.rotation.x, 0.04, dt * 10);
       this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, dt * 10);
       this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, dt * 10);
+      this.leftElbow.rotation.x = THREE.MathUtils.lerp(this.leftElbow.rotation.x, -0.12, dt * 10);
+      this.rightElbow.rotation.x = THREE.MathUtils.lerp(this.rightElbow.rotation.x, -0.12, dt * 10);
       this.torso.rotation.x = THREE.MathUtils.lerp(this.torso.rotation.x, 0, dt * 8);
       this.torso.rotation.y = THREE.MathUtils.lerp(this.torso.rotation.y, 0, dt * 8);
+      this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x, Math.sin(this.walkPhase) * 0.02, dt * 6);
     }
 
     this.leftArm.rotation.z = 0.06;
@@ -311,6 +716,7 @@ export class CharacterRig {
       this.punchTimer = Math.max(0, this.punchTimer - dt);
       const p = Math.sin((this.punchTimer / 0.26) * Math.PI);
       this.rightArm.rotation.x = -1.65 * p;
+      this.rightElbow.rotation.x = -0.1 * p;
       this.torso.rotation.y = 0.38 * p;
     }
 
@@ -324,6 +730,7 @@ export class CharacterRig {
       const pitchOffset = THREE.MathUtils.clamp(aimPitch, -0.6, 0.6);
       this.rightArm.rotation.x = -Math.PI * 0.5 + pitchOffset - kick;
       this.rightArm.rotation.y = -0.08;
+      this.rightElbow.rotation.x = -0.08;
       const twoHand =
         this.currentWeapon === 'rifle' ||
         this.currentWeapon === 'shotgun' ||
@@ -331,6 +738,7 @@ export class CharacterRig {
       if (twoHand) {
         this.leftArm.rotation.x = -Math.PI * 0.48 + pitchOffset - kick * 0.8;
         this.leftArm.rotation.y = 0.45;
+        this.leftElbow.rotation.x = -0.55;
       }
       this.torso.rotation.y = 0;
     }

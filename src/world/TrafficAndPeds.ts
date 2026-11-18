@@ -42,13 +42,26 @@ export interface Pedestrian {
   shootTimer: number;
 }
 
-const PED_SKINS = [0xf1c29b, 0xd8a07a, 0x8d5524, 0x5c3822, 0xe6b89c, 0xb87b52];
+const PED_SKINS = [
+  0xf1c29b, 0xd8a07a, 0x8d5524, 0x5c3822, 0xe6b89c, 0xb87b52,
+  0x6b442a, 0xcf9977, 0x9c6644, 0x4a2c1a, 0xf5d0a9, 0x7c4a2d,
+];
 const PED_TOPS = [
   0xf8fafc, 0x2563eb, 0xef4444, 0x10b981, 0xf59e0b,
   0x8b5cf6, 0xec4899, 0x1e293b, 0x06b6d4, 0xeab308,
+  0x0f172a, 0x7c2d12, 0x365314, 0x581c87, 0x9d174d,
 ];
-const PED_PANTS = [0x1e293b, 0x334155, 0x1e3a5f, 0xd6cfc2, 0x3f3f46, 0x4b5563];
-const PED_HAIR = [0x171412, 0x3d2817, 0x6b4423, 0xc79c52, 0x292524];
+const PED_PANTS = [0x1e293b, 0x334155, 0x1e3a5f, 0xd6cfc2, 0x3f3f46, 0x4b5563, 0x292524, 0x1c1917];
+const PED_HAIR = [0x171412, 0x3d2817, 0x6b4423, 0xc79c52, 0x292524, 0xd6d3d1, 0x7f1d1d, 0x1e3a5f];
+const PED_HAIR_STYLES: Array<'short' | 'long' | 'bald' | 'cap' | 'beanie' | 'ponytail' | 'afro' | 'mohawk'> = [
+  'short', 'short', 'long', 'cap', 'beanie', 'ponytail', 'afro', 'bald', 'mohawk', 'short',
+];
+const PED_OUTFITS: Array<'tee' | 'hoodie' | 'jacket' | 'suit' | 'athletic'> = [
+  'tee', 'hoodie', 'jacket', 'suit', 'athletic', 'tee', 'hoodie', 'jacket',
+];
+const PED_BODY_TYPES: Array<'slim' | 'average' | 'heavy' | 'athletic'> = [
+  'slim', 'average', 'average', 'heavy', 'athletic', 'average', 'slim', 'heavy',
+];
 
 export class TrafficAndPeds {
   private scene: THREE.Scene;
@@ -179,6 +192,11 @@ export class TrafficAndPeds {
         pants: PED_PANTS[i % PED_PANTS.length],
         shoes: i % 2 === 0 ? 0xf1f5f9 : 0x1f2937,
         hasSunglasses: i % 3 === 0,
+        hairStyle: PED_HAIR_STYLES[i % PED_HAIR_STYLES.length],
+        outfit: PED_OUTFITS[i % PED_OUTFITS.length],
+        bodyType: PED_BODY_TYPES[i % PED_BODY_TYPES.length],
+        beard: i % 4 === 1,
+        detail: 'simple',
       });
       rig.root.position.copy(spot);
       this.scene.add(rig.root);

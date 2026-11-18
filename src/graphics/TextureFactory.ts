@@ -601,6 +601,247 @@ export class TextureFactory {
     return set;
   }
 
+  /** Classic NYC brownstone / red-brick tenement facade with stoop, cornice & fire-escape shadow. */
+  public getBrownstoneFacade(
+    key: string,
+    brickColor: string,
+    trimColor: string,
+    cols = 5,
+    rows = 5
+  ): FacadeTextureSet {
+    const cached = this.facadeCache.get(key);
+    if (cached) return cached;
+
+    const w = 512;
+    const h = 640;
+    const albedo = document.createElement('canvas');
+    albedo.width = w;
+    albedo.height = h;
+    const ctx = albedo.getContext('2d')!;
+    const emissive = document.createElement('canvas');
+    emissive.width = w;
+    emissive.height = h;
+    const ectx = emissive.getContext('2d')!;
+    const bump = document.createElement('canvas');
+    bump.width = w;
+    bump.height = h;
+    const bctx = bump.getContext('2d')!;
+
+    ctx.fillStyle = brickColor;
+    ctx.fillRect(0, 0, w, h);
+    ectx.fillStyle = '#000000';
+    ectx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#b0b0b0';
+    bctx.fillRect(0, 0, w, h);
+
+    // Brick courses
+    const courseH = 10;
+    for (let y = 0; y < h; y += courseH) {
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fillRect(0, y, w, 1.5);
+      const offset = (y / courseH) % 2 === 0 ? 0 : 14;
+      for (let x = offset; x < w; x += 28) {
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(x, y, 1.5, courseH);
+      }
+      for (let i = 0; i < 30; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,220,190,0.05)' : 'rgba(20,10,5,0.07)';
+        ctx.fillRect(Math.random() * w, y + Math.random() * courseH, 6, 3);
+      }
+    }
+
+    // Limestone cornice at top
+    ctx.fillStyle = trimColor;
+    ctx.fillRect(0, 0, w, 26);
+    ctx.fillRect(0, 30, w, 8);
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.fillRect(0, 26, w, 4);
+
+    const cw = w / cols;
+    const rh = (h - 40) / rows;
+
+    for (let r = 0; r < rows; r++) {
+      const isGround = r === rows - 1;
+      const baseY = 40 + r * rh;
+      // Floor band
+      ctx.fillStyle = trimColor;
+      ctx.fillRect(0, baseY, w, 4);
+
+      for (let c = 0; c < cols; c++) {
+        const px = c * cw + cw * 0.2;
+        const pw = cw * 0.6;
+        const py = baseY + rh * 0.18;
+        const ph = isGround ? rh * 0.68 : rh * 0.6;
+
+        // Limestone lintel + sill
+        ctx.fillStyle = trimColor;
+        ctx.fillRect(px - 5, py - 7, pw + 10, 6);
+        ctx.fillRect(px - 5, py + ph + 2, pw + 10, 5);
+        // Window frame
+        ctx.fillStyle = '#2a2118';
+        ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
+        // Glass with slight variation
+        const g = ctx.createLinearGradient(px, py, px, py + ph);
+        g.addColorStop(0, '#3d4f63');
+        g.addColorStop(1, '#1c2733');
+        ctx.fillStyle = g;
+        ctx.fillRect(px, py, pw, ph);
+        // Mullions
+        ctx.fillStyle = 'rgba(20,16,12,0.8)';
+        ctx.fillRect(px + pw / 2 - 1, py, 2, ph);
+        ctx.fillRect(px, py + ph / 2 - 1, pw, 2);
+        // Window AC unit on some upper windows
+        if (!isGround && (r * 3 + c * 5 + key.length) % 4 === 0) {
+          ctx.fillStyle = '#9aa3ad';
+          ctx.fillRect(px + 2, py + ph - 14, pw - 4, 12);
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          for (let v = 0; v < pw - 6; v += 5) ctx.fillRect(px + 4 + v, py + ph - 12, 2, 8);
+        }
+        if (isGround) {
+          // Stoop door on center bay
+          if (c === Math.floor(cols / 2)) {
+            ctx.fillStyle = '#3a2a1c';
+            ctx.fillRect(px - 4, py - 4, pw + 8, ph + 8);
+            ctx.fillStyle = '#d4af37';
+            ctx.fillRect(px + pw - 10, py + ph / 2, 4, 4);
+          }
+          ectx.fillStyle = '#ffe1a8';
+          ectx.fillRect(px + 3, py + 6, pw - 6, ph - 10);
+        } else if ((r * 7 + c * 11 + key.length) % 5 < 2) {
+          ectx.fillStyle = '#ffd591';
+          ectx.fillRect(px + 2, py + 2, pw - 4, ph - 4);
+        }
+        bctx.fillStyle = '#484848';
+        bctx.fillRect(px, py, pw, ph);
+      }
+    }
+
+    // Fire-escape shadow streaks (vertical dark bands)
+    ctx.fillStyle = 'rgba(15,12,10,0.18)';
+    for (let c = 0; c < cols; c++) {
+      const fx = c * cw + cw * 0.5;
+      ctx.fillRect(fx - 18, 40, 36, h - 60);
+    }
+
+    const set: FacadeTextureSet = {
+      map: this.finalize(albedo, 1, 1, true),
+      emissiveMap: this.finalize(emissive, 1, 1, true),
+      bumpMap: this.finalize(bump, 1, 1, false),
+    };
+    this.facadeCache.set(key, set);
+    return set;
+  }
+
+  /** NYC bodega / deli storefront: big glass, striped awning, sign band. */
+  public getBodegaFacade(
+    key: string,
+    wallColor: string,
+    awningColor: string,
+    signColor: string,
+    cols = 4,
+    rows = 3
+  ): FacadeTextureSet {
+    const cached = this.facadeCache.get(key);
+    if (cached) return cached;
+
+    const w = 512;
+    const h = 512;
+    const albedo = document.createElement('canvas');
+    albedo.width = w;
+    albedo.height = h;
+    const ctx = albedo.getContext('2d')!;
+    const emissive = document.createElement('canvas');
+    emissive.width = w;
+    emissive.height = h;
+    const ectx = emissive.getContext('2d')!;
+    const bump = document.createElement('canvas');
+    bump.width = w;
+    bump.height = h;
+    const bctx = bump.getContext('2d')!;
+
+    ctx.fillStyle = wallColor;
+    ctx.fillRect(0, 0, w, h);
+    ectx.fillStyle = '#000000';
+    ectx.fillRect(0, 0, w, h);
+    bctx.fillStyle = '#b0b0b0';
+    bctx.fillRect(0, 0, w, h);
+
+    // Upper floors: simple windows
+    const cw = w / cols;
+    const upperH = h * 0.55;
+    const rh = upperH / 2;
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < cols; c++) {
+        const px = c * cw + cw * 0.22;
+        const pw = cw * 0.56;
+        const py = 20 + r * rh;
+        const ph = rh * 0.62;
+        ctx.fillStyle = '#2a2118';
+        ctx.fillRect(px - 2, py - 2, pw + 4, ph + 4);
+        const g = ctx.createLinearGradient(px, py, px, py + ph);
+        g.addColorStop(0, '#42566b');
+        g.addColorStop(1, '#1f2a36');
+        ctx.fillStyle = g;
+        ctx.fillRect(px, py, pw, ph);
+        if ((r * 5 + c * 3 + key.length) % 4 === 0) {
+          ectx.fillStyle = '#ffd591';
+          ectx.fillRect(px + 2, py + 2, pw - 4, ph - 4);
+        }
+        bctx.fillStyle = '#484848';
+        bctx.fillRect(px, py, pw, ph);
+      }
+    }
+
+    // Sign band
+    const signY = upperH + 8;
+    ctx.fillStyle = signColor;
+    ctx.fillRect(0, signY, w, 44);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 30px "Arial Black", Impact, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('DELI • GROCERY • 24 HR', w / 2, signY + 22, w - 30);
+
+    // Striped awning
+    const awnY = signY + 44;
+    ctx.fillStyle = awningColor;
+    ctx.fillRect(0, awnY, w, 30);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    for (let x = 0; x < w; x += 36) ctx.fillRect(x, awnY, 18, 30);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(0, awnY + 26, w, 4);
+
+    // Ground-floor glass storefront
+    const glassY = awnY + 30;
+    const glassH = h - glassY - 10;
+    const g2 = ctx.createLinearGradient(0, glassY, 0, glassY + glassH);
+    g2.addColorStop(0, '#5a7a94');
+    g2.addColorStop(1, '#2a3d4f');
+    ctx.fillStyle = g2;
+    ctx.fillRect(10, glassY, w - 20, glassH);
+    // Interior glow + poster silhouettes
+    ectx.fillStyle = '#ffe9b8';
+    ectx.fillRect(16, glassY + 6, w - 32, glassH - 12);
+    ctx.fillStyle = 'rgba(20,30,40,0.55)';
+    for (let x = 30; x < w - 40; x += 70) {
+      ctx.fillRect(x, glassY + 14, 34, glassH - 28);
+    }
+    // Mullions
+    ctx.fillStyle = '#1c1c1e';
+    for (let x = 10; x <= w - 10; x += (w - 20) / 4) ctx.fillRect(x - 3, glassY, 6, glassH);
+    ctx.fillRect(10, glassY + glassH / 2 - 3, w - 20, 6);
+    bctx.fillStyle = '#484848';
+    bctx.fillRect(10, glassY, w - 20, glassH);
+
+    const set: FacadeTextureSet = {
+      map: this.finalize(albedo, 1, 1, true),
+      emissiveMap: this.finalize(emissive, 1, 1, true),
+      bumpMap: this.finalize(bump, 1, 1, false),
+    };
+    this.facadeCache.set(key, set);
+    return set;
+  }
+
   public createSignTexture(
     title: string,
     subtitle: string,

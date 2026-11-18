@@ -51,8 +51,10 @@ export class CityBuilder {
     this.buildVinewoodHillsAndSign();
     this.buildVespucciBeachAndPier();
     this.buildDowntownAndDistricts();
+    this.buildNYCInfill();
     this.buildInteractiveShops();
     this.buildStreetFurnitureAndPalms();
+    this.buildNYCStreetLife();
     this.buildStuntRamps(ramps);
     this.buildDistantMountains();
   }
@@ -112,6 +114,38 @@ export class CityBuilder {
       bumpScale: 0.15,
       metalness,
       roughness,
+    });
+    this.emissiveFacadeMats.push(mat);
+    return mat;
+  }
+
+  private makeBrownstoneMat(key: string, brick: string, trim: string, cols = 5, rows = 5): THREE.MeshStandardMaterial {
+    const set = this.textures.getBrownstoneFacade(key, brick, trim, cols, rows);
+    const mat = new THREE.MeshStandardMaterial({
+      map: set.map,
+      emissive: new THREE.Color(0xffd699),
+      emissiveMap: set.emissiveMap,
+      emissiveIntensity: 0.1,
+      bumpMap: set.bumpMap,
+      bumpScale: 0.12,
+      roughness: 0.8,
+      metalness: 0.05,
+    });
+    this.emissiveFacadeMats.push(mat);
+    return mat;
+  }
+
+  private makeBodegaMat(key: string, wall: string, awning: string, sign: string): THREE.MeshStandardMaterial {
+    const set = this.textures.getBodegaFacade(key, wall, awning, sign, 4, 3);
+    const mat = new THREE.MeshStandardMaterial({
+      map: set.map,
+      emissive: new THREE.Color(0xffe9b8),
+      emissiveMap: set.emissiveMap,
+      emissiveIntensity: 0.35,
+      bumpMap: set.bumpMap,
+      bumpScale: 0.1,
+      roughness: 0.75,
+      metalness: 0.05,
     });
     this.emissiveFacadeMats.push(mat);
     return mat;
@@ -1092,6 +1126,338 @@ export class CityBuilder {
     // Block (+165, +165) — La Mesa Industrial Warehouses (Trevor's turf)
     this.addBuildingBox(175, 152, 44, 28, 15, industrialMat, 0x4b5563, SIDEWALK_Y, '#4d535c');
     this.addBuildingBox(172, 186, 48, 22, 18, brickUrban, 0x4b5563, SIDEWALK_Y, '#4d535c');
+  }
+
+  /**
+   * NYC-style infill: brownstone row houses, bodega storefronts, rooftop water
+   * towers and fire escapes that fill the gaps between the landmark blocks so
+   * the city reads as a dense, lived-in community. All placements avoid the
+   * protagonist spawns and shop doorways.
+   */
+  private buildNYCInfill(): void {
+    const brown1 = this.makeBrownstoneMat('nyc_brown_red', '#8a4a3a', '#d8cfc0', 5, 5);
+    const brown2 = this.makeBrownstoneMat('nyc_brown_dark', '#6e3f33', '#c9bda8', 5, 4);
+    const brown3 = this.makeBrownstoneMat('nyc_brown_tan', '#9c6b4f', '#e2d8c8', 4, 5);
+    const bodega1 = this.makeBodegaMat('nyc_bodega_green', '#7a6a55', '#15803d', '#14532d');
+    const bodega2 = this.makeBodegaMat('nyc_bodega_red', '#8d7b68', '#b91c1c', '#7f1d1d');
+
+    // [x, z, w, d, h, material, roofColor, mapColor]
+    const infill: Array<[number, number, number, number, number, THREE.Material, number, string]> = [
+      [20, -50, 18, 24, 22, brown1, 0x4a3a30, '#5c4a42'],      // Pillbox west strip
+      [-30, -135, 24, 20, 14, bodega1, 0x4b5563, '#4f5a52'],   // Financial SE bodega
+      [19, -135, 14, 26, 24, brown2, 0x3f3630, '#554e48'],     // Vinewood west brownstone
+      [-200, -140, 16, 30, 22, brown3, 0x5a4a3a, '#5c554c'],   // Eclipse SW brownstone
+      [-165, -92, 30, 12, 12, bodega2, 0x4b5563, '#585652'],    // Rockford north bodega
+      [-165, 16, 24, 10, 18, brown1, 0x4a3a30, '#59575c'],     // Vespucci north brownstone
+      [-165, 126, 30, 10, 18, brown2, 0x3f3630, '#555861'],    // Vespucci south brownstone
+      [-93, 160, 12, 36, 22, brown3, 0x5a4a3a, '#525864'],     // South Pillbox west brownstone
+      [16, 165, 10, 40, 20, brown1, 0x4a3a30, '#525864'],      // Strawberry west brownstone
+      [127, -165, 12, 36, 22, brown2, 0x3f3630, '#525864'],    // Mirror Park west brownstone
+      [170, -92, 30, 12, 13, bodega1, 0x4b5563, '#545d6a'],    // Downtown East bodega
+      [135, 55, 24, 40, 24, brown3, 0x5a4a3a, '#525864'],      // East Commercial brownstone
+      [140, 128, 20, 14, 18, brown1, 0x4a3a30, '#4d535c'],     // La Mesa north brownstone
+    ];
+
+    for (const [x, z, w, d, h, mat, roof, mapColor] of infill) {
+      this.addBuildingBox(x, z, w, d, h, mat, roof, SIDEWALK_Y, mapColor);
+    }
+
+    // Iconic NYC rooftop water towers on select mid-rise roofs
+    const tankMat = new THREE.MeshStandardMaterial({ color: 0x8a6b4a, roughness: 0.85 });
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0x5c4a34, roughness: 0.8 });
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x3a3f45, metalness: 0.6, roughness: 0.5 });
+    const towerSpots: Array<[number, number, number]> = [
+      [-142, -74, 22],   // Rockford boutique roof
+      [-154, -34, 26],   // Terracotta roof
+      [-184, 38, 26],    // Vespucci coral roof
+      [74, 165, 22],     // Strawberry brick roof
+      [148, -62, 58],    // Downtown East bronze roof
+      [52, -32, 34],     // Hospital roof
+      [38, -182, 28],    // Deco theater roof
+      [-35, 174, 30],    // South Pillbox brick roof
+    ];
+    for (const [x, z, roofY] of towerSpots) {
+      const g = new THREE.Group();
+      g.position.set(x, SIDEWALK_Y + roofY, z);
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.4, 4.2, 12), tankMat);
+      tank.position.y = 4.6;
+      tank.castShadow = true;
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.8, 12), coneMat);
+      cone.position.y = 7.6;
+      g.add(tank, cone);
+      for (const [lx, lz] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6]] as const) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 6), legMat);
+        leg.position.set(lx, 1.4, lz);
+        g.add(leg);
+      }
+      this.scene.add(g);
+    }
+
+    // Fire escapes on the brownstone fronts (platforms + railings + stairs)
+    const fireMat = new THREE.MeshStandardMaterial({ color: 0x2f3338, metalness: 0.7, roughness: 0.45 });
+    const fireSpots: Array<{ x: number; z: number; w: number; h: number; rotY: number }> = [
+      { x: 20, z: -37.8, w: 18, h: 22, rotY: 0 },       // faces +Z (south)
+      { x: -200, z: -124.8, w: 16, h: 22, rotY: Math.PI }, // faces -Z (north)
+      { x: -93, z: 142.2, w: 12, h: 22, rotY: Math.PI },   // faces -Z
+      { x: 16, z: 185.2, w: 10, h: 20, rotY: 0 },          // faces +Z
+      { x: 127, z: -183.2, w: 12, h: 22, rotY: 0 },        // faces +Z
+      { x: 135, z: 75.2, w: 24, h: 24, rotY: 0 },          // faces +Z
+    ];
+    for (const fs of fireSpots) {
+      const g = new THREE.Group();
+      g.position.set(fs.x, SIDEWALK_Y, fs.z);
+      g.rotation.y = fs.rotY;
+      const floors = Math.floor(fs.h / 5.5);
+      for (let f = 1; f <= floors; f++) {
+        const y = f * 5.2;
+        const platform = new THREE.Mesh(new THREE.BoxGeometry(fs.w * 0.8, 0.18, 1.4), fireMat);
+        platform.position.set(0, y, 0.7);
+        g.add(platform);
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(fs.w * 0.8, 0.7, 0.06), fireMat);
+        rail.position.set(0, y + 0.5, 1.35);
+        g.add(rail);
+        for (const sx of [-fs.w * 0.4, fs.w * 0.4]) {
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), fireMat);
+          post.position.set(sx, y + 0.5, 1.35);
+          g.add(post);
+        }
+        // Diagonal stair to next platform
+        if (f < floors) {
+          const stair = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 5.4), fireMat);
+          stair.position.set(f % 2 === 0 ? -fs.w * 0.2 : fs.w * 0.2, y + 2.6, 0.7);
+          stair.rotation.x = 0.85;
+          g.add(stair);
+        }
+      }
+      this.scene.add(g);
+    }
+  }
+
+  /**
+   * Lived-in NYC street life: deciduous street trees, benches, trash cans,
+   * planters, bike racks, newspaper boxes, subway entrances, traffic cones
+   * and construction barriers along the sidewalks.
+   */
+  private buildNYCStreetLife(): void {
+    const dummy = new THREE.Object3D();
+
+    // ── Deciduous street trees (instanced trunk + canopy) ──────────────────
+    const treeSpots: Array<{ x: number; z: number; s: number }> = [];
+    for (const r of ROAD_COORDS) {
+      for (const mid of [-165, -55, 55, 165]) {
+        if (Math.random() < 0.75) treeSpots.push({ x: r + 13.4, z: mid + 18, s: 0.9 + Math.random() * 0.35 });
+        if (Math.random() < 0.75) treeSpots.push({ x: mid - 18, z: r - 13.4, s: 0.9 + Math.random() * 0.35 });
+      }
+    }
+    // Legion Square park trees
+    for (const [px, pz] of [[-80, 30], [-30, 30], [-80, 80], [-30, 80], [-55, 22], [-55, 88]] as const) {
+      treeSpots.push({ x: px, z: pz, s: 1.1 });
+    }
+
+    const trunkGeo = new THREE.CylinderGeometry(0.14, 0.22, 3.2, 7);
+    trunkGeo.translate(0, 1.6, 0);
+    const canopyGeo = new THREE.SphereGeometry(1.9, 10, 8);
+    canopyGeo.translate(0, 4.4, 0);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 });
+    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x4a7c3a, roughness: 0.85 });
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, trunkMat, treeSpots.length);
+    const canopyInst = new THREE.InstancedMesh(canopyGeo, canopyMat, treeSpots.length);
+    trunkInst.castShadow = true;
+    canopyInst.castShadow = true;
+    treeSpots.forEach((t, i) => {
+      const gy = sampleBaseTerrainHeight(t.x, t.z);
+      dummy.position.set(t.x, gy, t.z);
+      dummy.rotation.set(0, i * 1.7, 0);
+      dummy.scale.setScalar(t.s);
+      dummy.updateMatrix();
+      trunkInst.setMatrixAt(i, dummy.matrix);
+      // Second offset canopy blob for fuller crown
+      dummy.position.y = gy + 0.9 * t.s;
+      dummy.updateMatrix();
+      canopyInst.setMatrixAt(i, dummy.matrix);
+    });
+    this.scene.add(trunkInst, canopyInst);
+
+    // ── Benches, trash cans, planters, newspaper boxes (instanced) ─────────
+    const benchMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.8 });
+    const benchGeo = new THREE.BoxGeometry(1.9, 0.12, 0.55);
+    benchGeo.translate(0, 0.45, 0);
+    const benchSpots: Array<[number, number, number]> = [];
+    for (const r of ROAD_COORDS) {
+      for (const mid of [-165, -55, 55, 165]) {
+        benchSpots.push([r + 13.2, mid - 8, Math.PI / 2]);
+        benchSpots.push([mid + 8, r + 13.2, 0]);
+      }
+    }
+    const benchInst = new THREE.InstancedMesh(benchGeo, benchMat, benchSpots.length);
+    benchInst.castShadow = true;
+    benchSpots.forEach(([x, z, rotY], i) => {
+      dummy.position.set(x, SIDEWALK_Y, z);
+      dummy.rotation.set(0, rotY, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      benchInst.setMatrixAt(i, dummy.matrix);
+    });
+    this.scene.add(benchInst);
+
+    const canMat = new THREE.MeshStandardMaterial({ color: 0x2f5d3a, roughness: 0.6, metalness: 0.4 });
+    const canGeo = new THREE.CylinderGeometry(0.34, 0.3, 0.95, 10);
+    canGeo.translate(0, 0.48, 0);
+    const canSpots: Array<[number, number]> = [];
+    for (const r of ROAD_COORDS) {
+      for (const mid of [-165, -55, 55, 165]) {
+        canSpots.push([r + 12.6, mid + 6]);
+        canSpots.push([mid - 6, r + 12.6]);
+      }
+    }
+    const canInst = new THREE.InstancedMesh(canGeo, canMat, canSpots.length);
+    canInst.castShadow = true;
+    canSpots.forEach(([x, z], i) => {
+      dummy.position.set(x, SIDEWALK_Y, z);
+      dummy.rotation.set(0, i, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      canInst.setMatrixAt(i, dummy.matrix);
+    });
+    this.scene.add(canInst);
+
+    const planterMat = new THREE.MeshStandardMaterial({ color: 0x8a8578, roughness: 0.85 });
+    const planterGeo = new THREE.BoxGeometry(1.6, 0.55, 0.7);
+    planterGeo.translate(0, 0.28, 0);
+    const planterTopGeo = new THREE.BoxGeometry(1.5, 0.22, 0.6);
+    planterTopGeo.translate(0, 0.66, 0);
+    const planterTopMat = new THREE.MeshStandardMaterial({ color: 0x3f7a38, roughness: 0.9 });
+    const planterSpots: Array<[number, number, number]> = [];
+    for (const r of ROAD_COORDS) {
+      for (const mid of [-165, -55, 55, 165]) {
+        planterSpots.push([r + 13.6, mid + 26, Math.PI / 2]);
+        planterSpots.push([mid - 26, r + 13.6, 0]);
+      }
+    }
+    const planterInst = new THREE.InstancedMesh(planterGeo, planterMat, planterSpots.length);
+    const planterTopInst = new THREE.InstancedMesh(planterTopGeo, planterTopMat, planterSpots.length);
+    planterSpots.forEach(([x, z, rotY], i) => {
+      dummy.position.set(x, SIDEWALK_Y, z);
+      dummy.rotation.set(0, rotY, 0);
+      dummy.scale.setScalar(1);
+      dummy.updateMatrix();
+      planterInst.setMatrixAt(i, dummy.matrix);
+      planterTopInst.setMatrixAt(i, dummy.matrix);
+    });
+    this.scene.add(planterInst, planterTopInst);
+
+    // Newspaper vending boxes (colorful, NYC sidewalk staple)
+    const newsColors = [0xdc2626, 0x2563eb, 0xf59e0b, 0x16a34a, 0x7c3aed];
+    const newsGeo = new THREE.BoxGeometry(0.55, 0.95, 0.5);
+    newsGeo.translate(0, 0.48, 0);
+    const newsSpots: Array<[number, number]> = [];
+    for (const r of ROAD_COORDS) {
+      for (const mid of [-55, 55, 165]) {
+        newsSpots.push([r + 12.4, mid - 14]);
+      }
+    }
+    newsSpots.forEach(([x, z], i) => {
+      const box = new THREE.Mesh(
+        newsGeo,
+        new THREE.MeshStandardMaterial({ color: newsColors[i % newsColors.length], roughness: 0.55 })
+      );
+      box.position.set(x, SIDEWALK_Y, z);
+      box.rotation.y = i * 0.7;
+      box.castShadow = true;
+      this.scene.add(box);
+    });
+
+    // ── Subway entrances (stairs + railing + sign) ─────────────────────────
+    const subwaySpots: Array<[number, number, number]> = [
+      [-110, -13.5, 0], [0, 13.5, Math.PI], [110, -13.5, 0], [-55, 13.5, Math.PI], [55, -13.5, 0],
+    ];
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x3b4048, metalness: 0.7, roughness: 0.4 });
+    const subwaySignTex = this.textures.createSignTexture('SUBWAY', 'LOS SANTOS TRANSIT AUTHORITY', '#0f172a', '#ffffff', '#f59e0b', 512, 128);
+    for (const [sx, sz, rotY] of subwaySpots) {
+      const g = new THREE.Group();
+      g.position.set(sx, SIDEWALK_Y, sz);
+      g.rotation.y = rotY;
+      // Descending stairwell
+      for (let s = 0; s < 5; s++) {
+        const step = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.22, 0.55), steelMat);
+        step.position.set(0, -s * 0.22, s * 0.55);
+        g.add(step);
+      }
+      // Railings
+      for (const rx of [-1.7, 1.7]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 3.2), steelMat);
+        rail.position.set(rx, 0.5, 1.2);
+        g.add(rail);
+      }
+      // Sign board
+      const board = new THREE.Mesh(
+        new THREE.BoxGeometry(3.4, 1.0, 0.15),
+        new THREE.MeshStandardMaterial({ map: subwaySignTex, roughness: 0.5 })
+      );
+      board.position.set(0, 1.6, -0.4);
+      g.add(board);
+      for (const px of [-1.5, 1.5]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.6, 6), steelMat);
+        post.position.set(px, 0.8, -0.4);
+        g.add(post);
+      }
+      this.scene.add(g);
+    }
+
+    // ── Traffic cones + construction barriers ──────────────────────────────
+    const coneMat = new THREE.MeshStandardMaterial({ color: 0xea580c, roughness: 0.6 });
+    const coneBandMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.5 });
+    const coneSpots: Array<[number, number]> = [
+      [-8, 8], [8, -8], [102, 8], [-102, -8], [8, 102], [-8, -102],
+      [102, 102], [-102, -102], [118, 8], [-118, -8], [8, 118], [-8, -118],
+    ];
+    for (const [cx, cz] of coneSpots) {
+      const g = new THREE.Group();
+      g.position.set(cx, 0, cz);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 10), coneMat);
+      cone.position.y = 0.3;
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, 0.14, 10), coneBandMat);
+      band.position.y = 0.32;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), coneMat);
+      base.position.y = 0.03;
+      g.add(cone, band, base);
+      this.scene.add(g);
+    }
+
+    const barrierSpots: Array<[number, number, number]> = [
+      [30, 30, 0.3], [-40, 60, -0.2], [70, -30, 0.5], [-70, -40, 0.1], [40, 130, -0.4], [-30, -130, 0.2],
+    ];
+    for (const [bx, bz, rotY] of barrierSpots) {
+      const g = new THREE.Group();
+      g.position.set(bx, SIDEWALK_Y, bz);
+      g.rotation.y = rotY;
+      const board = new THREE.Mesh(
+        new THREE.BoxGeometry(2.2, 0.7, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6 })
+      );
+      board.position.y = 0.75;
+      const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.22, 0.18, 0.13), coneBandMat);
+      stripe.position.y = 0.75;
+      g.add(board, stripe);
+      for (const lx of [-0.9, 0.9]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.8, 0.5), steelMat);
+        leg.position.set(lx, 0.4, 0);
+        g.add(leg);
+      }
+      this.scene.add(g);
+    }
+
+    // ── Bike racks (U-shaped tubes) ────────────────────────────────────────
+    const rackMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });
+    const rackGeo = new THREE.TorusGeometry(0.35, 0.035, 6, 12, Math.PI);
+    for (const [rx, rz] of [[-13.2, -30], [13.2, 40], [-30, 13.2], [40, -13.2], [-13.2, 130], [130, 13.2]] as const) {
+      for (let k = 0; k < 3; k++) {
+        const rack = new THREE.Mesh(rackGeo, rackMat);
+        rack.position.set(rx + k * 0.6, SIDEWALK_Y + 0.02, rz);
+        rack.rotation.y = Math.PI / 2;
+        this.scene.add(rack);
+      }
+    }
   }
 
   private buildInteractiveShops(): void {
