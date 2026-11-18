@@ -1,4 +1,4 @@
 {
-  "note": "Drop licensed .mp3/.m4a/.ogg/.wav files into public/music/ and list them under 'files' below (or import them directly in-game via iFruit Music / Settings) to stream original studio audio.",
+  "note": "Place your licensed audio files in public/music/ and map any of these IDs in 'files' (or use '+ Import MP3s' in-game): kweku-smoke-sober, kweku-smoke-faith, kweku-smoke-survivor, kweku-smoke-hallelujah, stonebwoy-people-dey, stonebwoy-run-go, stonebwoy-send-dem-a-prayer, stonebwoy-hero, stonebwoy-jejereje.",
   "files": {}
 }

@@ -48,7 +48,6 @@ export class AudioEngine {
     gold_coast: 0,
     bhim_fm: 0,
     scatter_fm: 0,
-    ground_up: 0,
   };
   private stepTimer = 0;
   private stepIndex = 0;
@@ -273,20 +272,22 @@ export class AudioEngine {
       }
     }
 
-    // 2. Otherwise detect artist -> route to their dedicated station + Gold Coast FM!
+    // 2. Otherwise detect Stonebwoy vs Kweku Smoke -> route to their dedicated station + Gold Coast FM!
     let artist = 'Custom Track';
     let station: Exclude<RadioStationId, 'off' | 'gold_coast'> = 'bhim_fm';
     let title = rawLabel;
 
-    if (norm.includes('stonebwoy') || norm.includes('bhim') || norm.includes('1gad')) {
-      artist = 'Stonebwoy';
-      station = 'bhim_fm';
-    } else if (norm.includes('kweku smoke') || norm.includes('kwekusmoke') || norm.includes('playman')) {
+    if (
+      norm.includes('kweku smoke') ||
+      norm.includes('kwekusmoke') ||
+      norm.includes('playman') ||
+      norm.includes('scatter')
+    ) {
       artist = 'Kweku Smoke';
       station = 'scatter_fm';
-    } else if (norm.includes('kwesi arthur') || norm.includes('kwesiarthur') || norm.includes('ground up')) {
-      artist = 'Kwesi Arthur';
-      station = 'ground_up';
+    } else if (norm.includes('stonebwoy') || norm.includes('bhim') || norm.includes('1gad')) {
+      artist = 'Stonebwoy';
+      station = 'bhim_fm';
     } else if (rawLabel.includes(' - ')) {
       const parts = rawLabel.split(' - ');
       artist = parts[0].trim();
@@ -306,8 +307,7 @@ export class AudioEngine {
       id,
       artist,
       title,
-      album: 'Imported Soundtrack',
-      year: 2026,
+      vibe: 'Imported Audio',
       station,
       keywords: [norm],
       audioUrl: url,
@@ -594,12 +594,8 @@ export class AudioEngine {
   private tickSoundtrackSequencer(song: SoundtrackSong, dt: number): void {
     if (!this.ctx || !this.musicBus) return;
 
-    // Half-time pocket for GH Drill / Trap / Tema Hip-Hop (>= 125 BPM)
-    const halfTime =
-      song.style === 'gh_drill' ||
-      song.style === 'gh_trap' ||
-      song.style === 'melodic_trap' ||
-      song.style === 'tema_hiphop';
+    // Half-time pocket for Kweku Smoke's soulful GH Trap & Drill (>= 125 BPM)
+    const halfTime = song.style === 'gh_drill' || song.style === 'gospel_trap';
 
     const baseSixteenth = 60 / song.bpm / (halfTime ? 2 : 4);
     const isOffStep = this.stepIndex % 2 === 1;
@@ -612,7 +608,7 @@ export class AudioEngine {
     const step = this.stepIndex % 16;
     const totalBar = Math.floor(this.stepIndex / 16);
     const bar = totalBar % 4;
-    const section = Math.floor(totalBar / 4) % 3; // 0 = groove+hook, 1 = full chorus, 2 = dub/808 breakdown
+    const section = Math.floor(totalBar / 4) % 3; // 0 = verse+hook, 1 = full chorus, 2 = dub/808 bridge
     this.stepIndex++;
 
     const t = this.ctx.currentTime + 0.005;
@@ -621,78 +617,81 @@ export class AudioEngine {
     const nextRootMidi = song.bassRoots[(bar + 1) % 4];
     const melody = bar % 2 === 0 ? song.melodyA : song.melodyB;
 
-    // ===================== 1. DRUMS & PERCUSSION =====================
-    if (song.style === 'afro_dancehall') {
-      // Stonebwoy silky Afro-dancehall pocket (Into the Future, Therapy)
-      if (step === 0 || step === 8 || (bar % 2 === 1 && step === 14)) {
-        this.playAfroKick(t, 0.2);
+    // ===================== 1. DRUMS, SKANK & BASS =====================
+    if (song.style === 'roots_reggae') {
+      // Stonebwoy — Run Go & Send Dem a Prayer (authentic conscious one-drop reggae + bubble organ)
+      if (step === 8 || (bar === 3 && step === 14)) {
+        this.playAfroKick(t, 0.22);
       }
-      // Classic 3-3-2 dancehall / Afrobeats rimshot timeline
-      if (step === 3 || step === 6 || step === 11 || step === 14) {
-        this.playRimshot(t, step === 6 || step === 14 ? 0.11 : 0.085, 860);
+      if (step === 8 || (bar % 2 === 1 && step === 15)) {
+        this.playRimshot(t, step === 8 ? 0.13 : 0.075, 800);
       }
-      if (step % 2 === 0) this.playShaker(t, step % 4 === 2 ? 0.036 : 0.02);
-      if (step === 15 && bar === 3) this.playShaker(t, 0.045);
+      if (step % 2 === 0) {
+        this.playHiHat(t, step === 2 || step === 6 || step === 10 || step === 14 ? 0.034 : 0.018, 0.032);
+      }
 
-      // Warm sub + log-drum syncopation
-      if (step === 0) this.playLogDrum(t, midiToFreq(rootMidi), 0.34, 0.22);
-      if (step === 6) this.playLogDrum(t, midiToFreq(rootMidi), 0.24, 0.18);
-      if (step === 10) this.playLogDrum(t, midiToFreq(rootMidi + 7), 0.22, 0.15);
-      if (step === 14) this.playLogDrum(t, midiToFreq(rootMidi), 0.2, 0.16);
-    } else if (song.style === 'afro_highlife' || song.style === 'afro_fusion') {
-      // Stonebwoy Jejereje & Kwesi Arthur Baajo / Celebrate / Nobody
-      if (step === 0 || step === 4 || step === 8 || step === 12) {
-        this.playAfroKick(t, step % 8 === 0 ? 0.19 : 0.14);
+      // Offbeat reggae guitar skank on '&' of every beat (steps 2, 6, 10, 14) + warm organ bubble
+      if (step === 2 || step === 6 || step === 10 || step === 14) {
+        for (const m of chord) {
+          this.playInstrument(t, midiToFreq(m + 12), 'guitar', 0.1, 0.038, true);
+        }
+      } else if (step === 3 || step === 7 || step === 11 || step === 15) {
+        this.playInstrument(t, midiToFreq(chord[0]), 'organ', 0.09, 0.032, false);
       }
-      // West African asymmetric woodblock/rim timeline
+
+      // Deep round singing roots reggae bassline
+      const regBass: Record<number, number> = { 0: 0, 3: 0, 6: 7, 10: 5, 12: 7, 14: 0 };
+      if (regBass[step] !== undefined) {
+        this.playLogDrum(t, midiToFreq(rootMidi + regBass[step]), 0.32, 0.21);
+      }
+    } else if (song.style === 'dancehall_anthem') {
+      // Stonebwoy — People Dey & Hero (militant roots-dancehall dembow & brass riddim)
+      if (step === 0 || step === 6 || step === 8 || (bar % 2 === 1 && step === 14)) {
+        this.playAfroKick(t, 0.22);
+      }
+      // Classic 3-3-2 dancehall snare/rimshot pocket
+      if (step === 3 || step === 6 || step === 11 || step === 14) {
+        this.playRimshot(t, 0.115, step === 6 || step === 14 ? 900 : 760);
+        if (step === 6 || step === 14) this.playTrapSnare(t, 0.075);
+      }
+      if (step % 2 === 0) this.playShaker(t, step % 4 === 2 ? 0.034 : 0.02);
+
+      // Crisp dancehall chord stab on steps 0, 6, 12
+      if (step === 0 || step === 6 || step === 12) {
+        for (const m of chord) {
+          this.playInstrument(t, midiToFreq(m), 'epiano', 0.18, 0.032, true);
+        }
+      }
+
+      if (step === 0) this.playLogDrum(t, midiToFreq(rootMidi), 0.34, 0.23);
+      if (step === 6) this.playLogDrum(t, midiToFreq(rootMidi), 0.25, 0.2);
+      if (step === 10) this.playLogDrum(t, midiToFreq(rootMidi + 7), 0.22, 0.16);
+      if (step === 14) this.playLogDrum(t, midiToFreq(nextRootMidi), 0.22, 0.18);
+    } else if (song.style === 'afro_highlife') {
+      // Stonebwoy — Jejereje (infectious Ghanaian highlife guitar + shaker + log-drum bounce)
+      if (step === 0 || step === 4 || step === 8 || step === 12) {
+        this.playAfroKick(t, step % 8 === 0 ? 0.2 : 0.14);
+      }
       if (step === 3 || step === 6 || step === 10 || step === 12 || step === 15) {
-        this.playRimshot(t, 0.085, step === 10 ? 1040 : 820);
+        this.playRimshot(t, 0.088, step === 10 ? 1040 : 820);
       }
       this.playShaker(t, step % 4 === 2 ? 0.038 : step % 2 === 1 ? 0.016 : 0.022);
 
-      // Signature Amapiano / Afrobeats log-drum bass bounce!
       if (step === 0) this.playLogDrum(t, midiToFreq(rootMidi), 0.32, 0.22);
       if (step === 3) this.playLogDrum(t, midiToFreq(rootMidi), 0.2, 0.17);
       if (step === 7) this.playLogDrum(t, midiToFreq(rootMidi + 12), 0.16, 0.12);
       if (step === 10) this.playLogDrum(t, midiToFreq(rootMidi), 0.26, 0.19);
       if (step === 14) this.playLogDrum(t, midiToFreq(nextRootMidi), 0.2, 0.15);
-    } else if (song.style === 'dancehall_club') {
-      // Stonebwoy Putuu high-energy dembow riddim
-      if (step === 0 || step === 4 || step === 8 || step === 12) this.playAfroKick(t, 0.22);
-      if (step === 3 || step === 6 || step === 11 || step === 14) this.playTrapSnare(t, 0.115);
-      if (step % 2 === 0) this.playHiHat(t, 0.03, 0.035);
-
-      if (step === 0 || step === 6 || step === 8 || step === 14) {
-        const pitch = step === 14 ? rootMidi + 5 : rootMidi;
-        this.playLogDrum(t, midiToFreq(pitch), 0.24, 0.22);
-      }
-    } else if (song.style === 'afro_reggae') {
-      // Stonebwoy Bawasaba one-drop / Afro-reggae skank
-      if (step === 0 || step === 8 || step === 11) this.playAfroKick(t, 0.18);
-      if (step === 4 || step === 12) this.playRimshot(t, 0.11, 780);
-      if (step % 2 === 0) this.playShaker(t, step % 4 === 2 ? 0.034 : 0.018);
-
-      // Offbeat reggae chord skank on steps 2, 6, 10, 14!
-      if (step === 2 || step === 6 || step === 10 || step === 14) {
-        for (const m of chord) {
-          this.playInstrument(t, midiToFreq(m + 12), 'guitar', 0.11, 0.042, true);
-        }
-      }
-      const regBass: Record<number, number> = { 0: 0, 3: 0, 6: 4, 8: 7, 12: 4, 14: 0 };
-      if (regBass[step] !== undefined) {
-        this.playLogDrum(t, midiToFreq(rootMidi + regBass[step]), 0.28, 0.2);
-      }
     } else if (song.style === 'gh_drill') {
-      // Kweku Smoke Holy Ghost & Scatter — authentic 3-3-2 Asakaa/GH Drill + sliding 808s!
+      // Kweku Smoke — Survivor (resilient 3-3-2 GH drill hi-hats + octave-gliding 808s)
       if (step === 0 || step === 10 || (bar % 2 === 1 && step === 7)) {
         this.playAfroKick(t, 0.24);
       }
-      // Signature drill snare placed on beat 3 (step 4) and shifted beat 4.5 (step 13/12)
       if (step === 4 || step === 12 || (bar === 3 && step === 15)) {
         this.playTrapSnare(t, 0.14);
       }
-      // Iconic 3-3-2 drill counter-hat pattern: 0, 3, 6, 8, 11, 14 + ghost rolls!
-      const drillHats = step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14;
+      const drillHats =
+        step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14;
       if (drillHats) {
         this.playHiHat(t, 0.048, 0.042);
       } else if (step === 7 || step === 15) {
@@ -700,7 +699,6 @@ export class AudioEngine {
         this.playHiHat(t + baseSixteenth * 0.5, 0.032, 0.025);
       }
 
-      // Sliding 808 bass with octave/fifth pitch glides!
       if (step === 0) {
         this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.55, 0.24);
       } else if (step === 6) {
@@ -711,41 +709,47 @@ export class AudioEngine {
         this.playDrill808(t, midiToFreq(rootMidi + 12), midiToFreq(nextRootMidi), 0.28, 0.2);
       }
     } else {
-      // GH Trap / Melodic Trap / Tema Hip-Hop (Yedin, Dis Side, Young Boy, Grind Day, Winning)
+      // Kweku Smoke — Sober, Faith & Hallelujah (soulful street-gospel choir + crisp trap + gliding 808s)
       if (step === 0 || step === 6 || step === 10 || (bar === 3 && step === 14)) {
         this.playAfroKick(t, 0.23);
       }
       if (step === 4 || step === 12) {
         this.playTrapSnare(t, 0.135);
       }
-      // Crisp trap hi-hats + triplet/32nd roll on step 3, 11, 15
-      this.playHiHat(t, step % 2 === 0 ? 0.038 : 0.024, 0.032);
+      this.playHiHat(t, step % 2 === 0 ? 0.038 : 0.022, 0.032);
       if (step === 11 || (bar % 2 === 1 && step === 15)) {
         this.playHiHat(t + baseSixteenth * 0.33, 0.028, 0.022);
         this.playHiHat(t + baseSixteenth * 0.66, 0.032, 0.022);
       }
 
+      // Warm gospel piano/organ chord swells on steps 0 and 8
+      if (step === 8) {
+        for (const m of chord) {
+          this.playInstrument(t, midiToFreq(m), 'epiano', baseSixteenth * 7.2, 0.028, true);
+        }
+      }
+
       if (step === 0) {
-        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.48, 0.23);
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.5, 0.23);
       } else if (step === 6) {
-        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.32, 0.19);
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(rootMidi), 0.34, 0.19);
       } else if (step === 10) {
-        const glideTo = bar === 3 ? rootMidi + 7 : rootMidi;
-        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(glideTo), 0.38, 0.2);
+        const glideTo = bar % 2 === 1 ? rootMidi + 7 : rootMidi;
+        this.playDrill808(t, midiToFreq(rootMidi), midiToFreq(glideTo), 0.4, 0.21);
       }
     }
 
-    // ===================== 2. WARM CHORD PADS & RHYTHMIC KEYS =====================
+    // ===================== 2. WARM CHORD PADS & HARMONIES =====================
     if (step === 0) {
       const barDur = baseSixteenth * 15.5;
+      const padVol = song.style === 'gospel_trap' ? 0.042 : 0.033;
       for (const m of chord) {
-        this.playPadVoice(t, midiToFreq(m), barDur, 0.034);
+        this.playPadVoice(t, midiToFreq(m), barDur, padVol);
       }
     }
-    // Syncopated chord stab in chorus section for extra richness
-    if (section === 1 && (step === 6 || step === 12) && song.style !== 'afro_reggae') {
+    if (section === 1 && (step === 6 || step === 12) && song.style !== 'roots_reggae') {
       for (const m of chord) {
-        this.playInstrument(t, midiToFreq(m), 'epiano', 0.24, 0.028, true);
+        this.playInstrument(t, midiToFreq(m), 'epiano', 0.24, 0.026, true);
       }
     }
 
@@ -753,10 +757,9 @@ export class AudioEngine {
     const semi = melody[step];
     if (semi !== null && semi !== undefined && (section !== 2 || step % 4 === 0)) {
       const noteMidi = chord[0] + semi;
-      const dur = baseSixteenth * (halfTime ? 2.4 : 2.8);
+      const dur = baseSixteenth * (halfTime ? 2.6 : 2.9);
       const gain = section === 1 ? 0.078 : 0.064;
       this.playInstrument(t, midiToFreq(noteMidi), song.leadInstrument, dur, gain, true);
-      // Subtle upper-octave shimmer in full chorus
       if (section === 1 && step === 0) {
         this.playInstrument(
           t,
@@ -1009,46 +1012,60 @@ export class AudioEngine {
     let release = dur;
 
     if (inst === 'guitar') {
-      // Bright Ghanaian highlife electric guitar pluck
+      // Bright Ghanaian highlife electric guitar & crisp reggae skank
       osc.type = 'sawtooth';
       flt.frequency.setValueAtTime(2800, t);
       flt.frequency.exponentialRampToValueAtTime(680, t + Math.min(0.22, dur));
       flt.Q.value = 1.6;
       attack = 0.004;
       release = Math.min(dur, 0.34);
-    } else if (inst === 'marimba') {
-      // Woody Afro-fusion kalimba / marimba mallet
+    } else if (inst === 'organ') {
+      // Warm Hammond / roots-reggae bubble organ (Send Dem a Prayer, Run Go)
       osc.type = 'sine';
-      flt.frequency.setValueAtTime(2400, t);
-      attack = 0.003;
-      release = Math.min(dur, 0.28);
-      const overtone = this.ctx.createOscillator();
-      const og = this.ctx.createGain();
-      overtone.type = 'triangle';
-      overtone.frequency.setValueAtTime(freq * 3, t);
-      og.gain.setValueAtTime(vol * 0.25, t);
-      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
-      overtone.connect(og);
-      og.connect(this.musicBus);
-      overtone.start(t);
-      overtone.stop(t + 0.055);
+      flt.frequency.setValueAtTime(1850, t);
+      attack = 0.01;
+      release = dur * 1.1;
+      const drawbar = this.ctx.createOscillator();
+      const dg = this.ctx.createGain();
+      drawbar.type = 'sine';
+      drawbar.frequency.setValueAtTime(freq * 2, t);
+      dg.gain.setValueAtTime(vol * 0.45, t);
+      dg.gain.exponentialRampToValueAtTime(0.0001, t + release);
+      drawbar.connect(dg);
+      dg.connect(this.musicBus);
+      drawbar.start(t);
+      drawbar.stop(t + release + 0.02);
+    } else if (inst === 'choir') {
+      // Soulful street-gospel choir voice (Hallelujah, Faith)
+      osc.type = 'sawtooth';
+      flt.type = 'bandpass';
+      flt.frequency.setValueAtTime(980, t);
+      flt.Q.value = 2.1;
+      attack = 0.038;
+      release = dur * 1.35;
+      const detuned = this.ctx.createOscillator();
+      detuned.type = 'triangle';
+      detuned.frequency.setValueAtTime(freq * 1.004, t);
+      detuned.connect(flt);
+      detuned.start(t);
+      detuned.stop(t + release + 0.025);
     } else if (inst === 'epiano') {
-      // Warm Fender Rhodes electric piano
+      // Warm Fender Rhodes electric piano (Sober)
       osc.type = 'triangle';
       flt.frequency.setValueAtTime(1950, t);
       flt.frequency.exponentialRampToValueAtTime(820, t + dur);
       attack = 0.01;
       release = dur * 1.15;
     } else if (inst === 'brass') {
-      // Warm Afrobeats / reggae horn & anthem synth brass
+      // Warm Kingston/Accra reggae-dancehall horn section (People Dey, Run Go, Hero)
       osc.type = 'sawtooth';
       flt.frequency.setValueAtTime(620, t);
       flt.frequency.linearRampToValueAtTime(2150, t + 0.045);
       flt.frequency.exponentialRampToValueAtTime(950, t + dur);
       attack = 0.018;
       release = dur * 1.05;
-    } else if (inst === 'dark_bell') {
-      // Moody Tema hip-hop / GH trap bell (Grind Day, Yedin)
+    } else {
+      // Moody GH drill bell (Survivor)
       osc.type = 'sine';
       flt.frequency.setValueAtTime(3200, t);
       attack = 0.004;
@@ -1063,19 +1080,6 @@ export class AudioEngine {
       bg.connect(this.musicBus);
       bellHarm.start(t);
       bellHarm.stop(t + 0.15);
-    } else if (inst === 'synth_lead') {
-      // Bouncy dancehall synth hook (Putuu)
-      osc.type = 'square';
-      flt.frequency.setValueAtTime(2100, t);
-      flt.frequency.exponentialRampToValueAtTime(750, t + dur);
-      vol *= 0.68;
-      attack = 0.006;
-    } else {
-      // Atmospheric drill/trap pluck (Scatter, Dis Side)
-      osc.type = 'triangle';
-      flt.frequency.setValueAtTime(2600, t);
-      flt.frequency.exponentialRampToValueAtTime(640, t + dur);
-      attack = 0.004;
     }
 
     osc.frequency.setValueAtTime(freq, t);

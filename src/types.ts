@@ -97,7 +97,6 @@ export type RadioStationId =
   | 'gold_coast'
   | 'bhim_fm'
   | 'scatter_fm'
-  | 'ground_up'
   | 'off';
 
 export interface RadioStation {
@@ -493,41 +492,31 @@ export const RADIO_STATIONS: RadioStation[] = [
     id: 'gold_coast',
     name: 'Gold Coast FM',
     shortLabel: 'GOLD',
-    genre: 'Stonebwoy • Kweku Smoke • Kwesi Arthur',
-    host: 'Ghana All-Stars Mix',
-    track: 'Stonebwoy — Into the Future',
+    genre: 'Stonebwoy & Kweku Smoke Mix',
+    host: 'All 9 Anthems',
+    track: 'Stonebwoy — People Dey',
     color: '#fbbf24',
-    bpm: 108,
+    bpm: 98,
   },
   {
     id: 'bhim_fm',
     name: 'BHIM Nation 101.9',
     shortLabel: 'BHIM',
-    genre: 'Afro-Dancehall & Reggae',
-    host: 'Stonebwoy Essentials',
-    track: 'Stonebwoy — Jejereje',
+    genre: 'Reggae, Dancehall & Afro-Highlife',
+    host: 'Stonebwoy Radio',
+    track: 'Stonebwoy — People Dey',
     color: '#22c55e',
-    bpm: 106,
+    bpm: 98,
   },
   {
     id: 'scatter_fm',
     name: 'Scatter Der 96.5',
-    shortLabel: 'SCTR',
-    genre: 'GH Drill, Asakaa & Trap',
+    shortLabel: 'SMKE',
+    genre: 'Soul Trap, Street Gospel & GH Drill',
     host: 'Kweku Smoke Radio',
-    track: 'Kweku Smoke — Holy Ghost',
+    track: 'Kweku Smoke — Sober',
     color: '#f87171',
-    bpm: 138,
-  },
-  {
-    id: 'ground_up',
-    name: 'Ground Up 99.7',
-    shortLabel: 'GRND',
-    genre: 'Afro-Fusion & Tema Hip-Hop',
-    host: 'Kwesi Arthur Radio',
-    track: 'Kwesi Arthur — Grind Day',
-    color: '#59a9e6',
-    bpm: 114,
+    bpm: 130,
   },
   {
     id: 'off',

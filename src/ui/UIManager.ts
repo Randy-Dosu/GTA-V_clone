@@ -413,7 +413,7 @@ export class UIManager {
       }</div>
       <div class="radio-now-sub">${
         song
-          ? `${song.album} (${song.year}) &bull; ${song.bpm} BPM &bull; ${
+          ? `${song.vibe} &bull; ${song.bpm} BPM &bull; ${
               song.audioUrl ? 'Original Audio Streaming' : 'In-Game Instrumental Riddim'
             }`
           : 'Select any station or song below to resume the soundtrack'
@@ -496,7 +496,7 @@ export class UIManager {
       row.innerHTML = `
         <span class="rt-info">
           <span class="rt-title">${tr.title}</span>
-          <span class="rt-artist">${tr.artist} &bull; ${tr.album}</span>
+          <span class="rt-artist">${tr.artist} &bull; ${tr.vibe}</span>
         </span>
         <span class="rt-badge ${badgeCls}">${badgeTxt}</span>
       `;
@@ -514,7 +514,7 @@ export class UIManager {
     const note = document.createElement('div');
     note.className = 'radio-footnote';
     note.textContent =
-      'Built-in Afro-Dancehall, GH Drill & Afro-Fusion instrumentals play automatically. Click "+ Import MP3s" anytime to stream your own Stonebwoy, Kweku Smoke & Kwesi Arthur audio files (auto-matched by title & artist).';
+      'Built-in Reggae, Dancehall, Afro-Highlife, Gospel Trap & GH Drill instrumentals play automatically. Click "+ Import MP3s" anytime to stream your own Stonebwoy & Kweku Smoke audio files (auto-matched by song title).';
     deck.appendChild(note);
 
     container.appendChild(deck);
@@ -755,13 +755,11 @@ export class UIManager {
       btn.style.top = `${y}px`;
       const meta =
         st.id === 'gold_coast'
-          ? 'All-Stars'
+          ? 'All 9 Hits'
           : st.id === 'bhim_fm'
           ? 'Stonebwoy'
           : st.id === 'scatter_fm'
           ? 'Kweku Smoke'
-          : st.id === 'ground_up'
-          ? 'Kwesi Arthur'
           : 'Mute';
       btn.innerHTML = `
         <span class="wheel-slot-icon" style="color:${st.color}">${st.shortLabel}</span>
@@ -1243,8 +1241,6 @@ export class UIManager {
             ? 'BHIM'
             : s.artist === 'Kweku Smoke'
             ? 'SMOKE'
-            : s.artist === 'Kwesi Arthur'
-            ? 'KWESI'
             : 'MP3';
         addPhoneAction(s.title, active ? 'LIVE' : shortArtist, () => {
           const pref = st.id === 'off' ? 'gold_coast' : st.id;
