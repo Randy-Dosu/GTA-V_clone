@@ -118,12 +118,23 @@ export class GamepadManager {
   private detectStyle(id: string): GamepadStyle {
     const low = id.toLowerCase();
     if (
+      low.includes('xbox') ||
+      low.includes('xinput') ||
+      low.includes('045e') ||
+      low.includes('microsoft') ||
+      low.includes('pro controller') ||
+      low.includes('057e') ||
+      low.includes('nintendo')
+    ) {
+      return 'xbox';
+    }
+    if (
       low.includes('dualsense') ||
       low.includes('dualshock') ||
       low.includes('playstation') ||
       low.includes('054c') ||
       low.includes('sony') ||
-      low.includes('wireless controller')
+      low.startsWith('wireless controller')
     ) {
       return 'playstation';
     }
