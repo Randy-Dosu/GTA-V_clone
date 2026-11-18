@@ -1,0 +1,1541 @@
+:root {
+  --bg-panel: rgba(9, 11, 15, 0.86);
+  --bg-panel-solid: #0c0f14;
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.28);
+  --text-main: #f5f7fa;
+  --text-muted: #9ca7b5;
+  --gta-green: #5ec96f;
+  --gta-blue: #4ea8e6;
+  --gta-yellow: #f4c430;
+  --gta-red: #e03535;
+  --gta-purple: #b55cff;
+  --font-display: 'Oswald', 'Barlow Condensed', Impact, 'Arial Narrow', sans-serif;
+  --font-cond: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-script: 'Playfair Display', Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #080a0e;
+  color: var(--text-main);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transition: filter 0.35s ease;
+}
+
+#game-canvas.fx-wasted {
+  filter: grayscale(0.95) contrast(1.32) brightness(0.78);
+}
+
+#game-canvas.fx-wheel {
+  filter: saturate(0.55) contrast(1.08) brightness(0.84);
+}
+
+#game-canvas.fx-franklin {
+  filter: saturate(1.25) contrast(1.12) hue-rotate(-8deg);
+}
+
+#game-canvas.fx-michael {
+  filter: saturate(0.78) contrast(1.18) brightness(1.04);
+}
+
+#game-canvas.fx-trevor {
+  filter: saturate(1.45) sepia(0.28) contrast(1.22);
+}
+
+#fx-layer,
+#flash-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+#fx-layer {
+  transition: box-shadow 0.25s ease, background 0.25s ease;
+}
+
+#fx-layer.damage {
+  box-shadow: inset 0 0 110px rgba(220, 38, 38, 0.55);
+}
+
+#fx-layer.ability-franklin {
+  box-shadow: inset 0 0 120px rgba(94, 201, 111, 0.34);
+}
+
+#fx-layer.ability-michael {
+  box-shadow: inset 0 0 120px rgba(78, 168, 230, 0.36);
+}
+
+#fx-layer.ability-trevor {
+  box-shadow: inset 0 0 130px rgba(240, 112, 46, 0.44);
+}
+
+#flash-layer {
+  background: #ffffff;
+  opacity: 0;
+  transition: opacity 0.22s ease-out;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* ===================== TITLE SCREEN ===================== */
+#title-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(28px, 4.5vw, 56px);
+}
+
+.title-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 22% 38%, rgba(7, 10, 15, 0.58) 0%, rgba(7, 10, 15, 0.0) 58%),
+    linear-gradient(to top, rgba(7, 10, 15, 0.78) 0%, rgba(7, 10, 15, 0.0) 32%);
+}
+
+.title-content {
+  position: relative;
+  z-index: 2;
+  margin-top: clamp(16px, 5vh, 64px);
+}
+
+.gtav-logo {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+}
+
+.logo-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 0.84;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(54px, 7.2vw, 96px);
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+  color: #ffffff;
+  text-shadow:
+    -3px -3px 0 #090b0e,
+    3px -3px 0 #090b0e,
+    -3px 3px 0 #090b0e,
+    3px 3px 0 #090b0e,
+    0 8px 28px rgba(0, 0, 0, 0.65);
+}
+
+.logo-line:nth-child(2) {
+  padding-left: 0.16em;
+}
+
+.logo-line:nth-child(3) {
+  padding-left: 0.06em;
+}
+
+.logo-v-emblem {
+  width: clamp(96px, 11vw, 152px);
+  margin-left: -14px;
+  margin-bottom: -10px;
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.65));
+}
+
+.v-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.title-location {
+  margin-top: 18px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.34em;
+  color: rgba(245, 247, 250, 0.85);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.title-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  padding-top: 18px;
+}
+
+.title-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  background: rgba(10, 13, 18, 0.62);
+  backdrop-filter: blur(8px);
+  color: rgba(245, 247, 250, 0.9);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  padding: 11px 24px;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+
+.title-tab:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.42);
+  color: #ffffff;
+}
+
+.title-tab.primary {
+  background: #f5f7fa;
+  color: #090b0f;
+  padding: 11px 34px;
+  font-weight: 800;
+}
+
+.title-tab.primary:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+/* Title modal (Controls / Settings) */
+.title-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(6, 8, 12, 0.68);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.title-modal-card {
+  width: min(680px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: rgba(11, 14, 19, 0.95);
+  border: 1px solid var(--border-subtle);
+  border-top: 3px solid #f5f7fa;
+  padding: 26px 30px;
+}
+
+.title-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title-modal-header h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.08em;
+}
+
+.icon-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.icon-close:hover {
+  color: #ffffff;
+}
+
+/* ===================== IN-GAME HUD ===================== */
+#hud {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Authentic GTA V Top-Left Help Box */
+.gta-help-box {
+  position: absolute;
+  top: 22px;
+  left: 24px;
+  max-width: 340px;
+  background: rgba(8, 10, 14, 0.84);
+  border-left: 3px solid #f5f7fa;
+  padding: 10px 15px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #f1f5f9;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.keycap {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 2px;
+  background: #f5f7fa;
+  color: #090b0f;
+  font-family: var(--font-cond);
+  font-weight: 800;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  border-radius: 2px;
+}
+
+/* Authentic GTA V Xbox & PlayStation Controller Button Glyphs */
+.gp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  background: #1f2530;
+  border: 1.5px solid rgba(255, 255, 255, 0.52);
+  color: #ffffff;
+  font-family: var(--font-cond);
+  font-weight: 800;
+  font-size: 11.5px;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.gp-btn.gp-round {
+  width: 21px;
+  min-width: 21px;
+  height: 21px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.gp-xb-a { background: #1e7f38; border-color: #6ee787; }
+.gp-xb-b { background: #a82424; border-color: #fca5a5; }
+.gp-xb-x { background: #1b5ea8; border-color: #7dd3fc; }
+.gp-xb-y { background: #a67812; border-color: #fde047; }
+
+.gp-ps-cross { background: #1c2434; border-color: #60a5fa; color: #93c5fd; }
+.gp-ps-circle { background: #1c2434; border-color: #f87171; color: #fca5a5; }
+.gp-ps-square { background: #1c2434; border-color: #e879f9; color: #f0abfc; }
+.gp-ps-tri { background: #1c2434; border-color: #34d399; color: #6ee7b7; }
+
+/* Gamepad Console Focus States (clean GTA V highlight across every screen) */
+.title-tab.gp-focus {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  transform: translateY(-1px);
+}
+
+.phone-app-btn.gp-focus,
+.phone-list-btn.gp-focus {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+
+.shop-row.gp-focus,
+.poi-item.gp-focus,
+.ghost-btn.gp-focus,
+.setting-row.gp-focus {
+  background: #f5f7fa;
+  color: #090b0f;
+}
+
+.shop-row.gp-focus .shop-price {
+  color: #15803d;
+}
+
+.color-swatch.gp-focus {
+  transform: scale(1.14);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #090b0f, 0 0 0 4px #ffffff;
+}
+
+.gp-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  margin-bottom: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--gta-green);
+  font-size: 12.5px;
+  color: #e2e8f0;
+}
+
+.gp-status-banner.disconnected {
+  border-left-color: rgba(255, 255, 255, 0.28);
+  color: var(--text-muted);
+}
+
+.ctrl-subtabs {
+  display: inline-flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ctrl-subtab {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.ctrl-subtab.active {
+  background: #f5f7fa;
+  color: #090b0f;
+  border-color: #f5f7fa;
+}
+
+/* Top-Right Wanted Stars + Money + Ammo */
+.hud-top-right {
+  position: absolute;
+  top: 20px;
+  right: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.wanted-stars {
+  display: flex;
+  gap: 4px;
+  font-size: 25px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.wanted-stars .star {
+  color: rgba(20, 24, 30, 0.52);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  transition: color 0.12s ease;
+}
+
+.wanted-stars .star.active {
+  color: #ffffff;
+  text-shadow:
+    0 0 2px #000,
+    0 2px 8px rgba(0, 0, 0, 0.88);
+}
+
+.wanted-stars.evading .star.active {
+  animation: gtaStarBlink 0.65s infinite ease-in-out;
+}
+
+@keyframes gtaStarBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.24; }
+}
+
+.hud-cash {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  text-shadow:
+    -1.5px -1.5px 0 rgba(0, 0, 0, 0.9),
+    1.5px -1.5px 0 rgba(0, 0, 0, 0.9),
+    -1.5px 1.5px 0 rgba(0, 0, 0, 0.9),
+    1.5px 1.5px 0 rgba(0, 0, 0, 0.9),
+    0 3px 10px rgba(0, 0, 0, 0.65);
+}
+
+.hud-cash-delta {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 21px;
+  color: var(--gta-green);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+.hud-cash-delta.neg {
+  color: var(--gta-red);
+}
+
+.hud-ammo {
+  margin-top: 2px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 21px;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+#ammo-mag {
+  color: #ffffff;
+}
+
+#ammo-reserve {
+  color: rgba(210, 218, 228, 0.78);
+  font-size: 18px;
+}
+
+.hud-timer {
+  margin-top: 6px;
+  padding: 4px 12px;
+  background: rgba(8, 10, 14, 0.82);
+  border-right: 3px solid var(--gta-yellow);
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+}
+
+/* Minimal GTA V Aim Dot Reticle */
+.reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.75);
+  transition: transform 0.08s ease, background 0.08s ease;
+}
+
+.reticle.hit {
+  background: #ff3b3b;
+  transform: translate(-50%, -50%) scale(1.75);
+}
+
+/* Bottom-Left Iconic GTA V Rectangular Radar + Health / Armor / Special Strip */
+.radar-wrap {
+  position: absolute;
+  bottom: 22px;
+  left: 24px;
+  width: 248px;
+  background: rgba(8, 10, 14, 0.92);
+  border: 2px solid rgba(12, 15, 20, 0.95);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.58);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#radar-canvas {
+  display: block;
+  width: 100%;
+  height: 158px;
+}
+
+.radar-bars {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 3px;
+  padding-top: 3px;
+  background: #090b0f;
+}
+
+.bar-track {
+  height: 7px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.health-track {
+  background: rgba(94, 201, 111, 0.22);
+}
+
+.armor-track {
+  background: rgba(78, 168, 230, 0.22);
+}
+
+.special-track {
+  background: rgba(244, 196, 48, 0.22);
+}
+
+.bar-fill {
+  height: 100%;
+  width: 100%;
+  transition: width 0.12s linear;
+}
+
+.health-fill {
+  background: var(--gta-green);
+}
+
+.health-fill.low {
+  background: var(--gta-red);
+  animation: gtaStarBlink 0.55s infinite;
+}
+
+.armor-fill {
+  background: var(--gta-blue);
+}
+
+.special-fill {
+  background: var(--gta-yellow);
+}
+
+/* Bottom-Center GTA V Mission Subtitle */
+.objective-bar {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, 52vw);
+  text-align: center;
+  font-size: 16.5px;
+  font-weight: 500;
+  color: #ffffff;
+  text-shadow:
+    0 1px 2px #000,
+    0 2px 10px rgba(0, 0, 0, 0.95);
+  letter-spacing: 0.01em;
+}
+
+.hl-yellow { color: var(--gta-yellow); font-weight: 600; }
+.hl-blue { color: var(--gta-blue); font-weight: 600; }
+.hl-red { color: #f87171; font-weight: 600; }
+.hl-green { color: var(--gta-green); font-weight: 600; }
+
+/* Bottom-Right Authentic GTA V Area/Vehicle Readout + Speed */
+.hud-bottom-right {
+  position: absolute;
+  bottom: 22px;
+  right: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
+.speed-box {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+
+#speed-val {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 34px;
+  line-height: 1;
+  color: #ffffff;
+}
+
+#speed-unit {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: rgba(245, 247, 250, 0.72);
+}
+
+.area-toast {
+  transition: opacity 0.45s ease;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.92);
+}
+
+.toast-vehicle {
+  font-family: var(--font-script);
+  font-style: italic;
+  font-size: 21px;
+  color: #f5f7fa;
+  line-height: 1.15;
+}
+
+.toast-street {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  line-height: 1.15;
+}
+
+.toast-district {
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(230, 236, 244, 0.78);
+}
+
+/* Big GTA V Banner (MISSION PASSED / STUNT JUMP COMPLETED) */
+.big-banner {
+  position: absolute;
+  top: 26%;
+  left: 0;
+  right: 0;
+  padding: 22px 24px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(8, 10, 14, 0.82) 22%,
+    rgba(8, 10, 14, 0.82) 78%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  text-align: center;
+  animation: bannerPop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bannerPop {
+  from { opacity: 0; transform: scale(1.08); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.banner-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(38px, 5vw, 62px);
+  letter-spacing: 0.05em;
+  color: #f0b429;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.9);
+  line-height: 1;
+}
+
+.banner-title.fail {
+  color: var(--gta-red);
+}
+
+.banner-sub {
+  margin-top: 6px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: 0.16em;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.banner-extra {
+  margin-top: 6px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--gta-green);
+}
+
+/* ===================== WEAPON & RADIO RADIAL WHEELS ===================== */
+.radial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle, rgba(8, 11, 16, 0.25) 0%, rgba(5, 7, 11, 0.62) 100%);
+  pointer-events: auto;
+}
+
+.wheel-container {
+  position: relative;
+  width: 390px;
+  height: 390px;
+}
+
+.wheel-slots {
+  position: absolute;
+  inset: 0;
+}
+
+.wheel-slot {
+  position: absolute;
+  width: 98px;
+  height: 98px;
+  margin-left: -49px;
+  margin-top: -49px;
+  border-radius: 50%;
+  background: rgba(12, 16, 22, 0.84);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: rgba(240, 244, 248, 0.82);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.wheel-slot.selected,
+.wheel-slot:hover {
+  transform: scale(1.12);
+  background: rgba(26, 34, 46, 0.95);
+  border-color: var(--gta-blue);
+  color: #ffffff;
+  box-shadow: 0 0 24px rgba(78, 168, 230, 0.35);
+}
+
+.wep-svg {
+  width: 56px;
+  height: 30px;
+  display: block;
+}
+
+.wheel-slot-icon {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.05em;
+}
+
+.wheel-slot-meta {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.wheel-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 174px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.wheel-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.wheel-sub {
+  font-family: var(--font-cond);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.wheel-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(9, 12, 17, 0.78);
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.stat-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.stat-bar i {
+  display: block;
+  height: 100%;
+  background: #ffffff;
+  width: 50%;
+}
+
+/* ===================== CHARACTER SWITCH DIAMOND ===================== */
+.char-wheel {
+  position: absolute;
+  bottom: 24px;
+  right: 26px;
+  width: 184px;
+  height: 184px;
+  pointer-events: auto;
+}
+
+.char-slot {
+  position: absolute;
+  width: 62px;
+  height: 62px;
+  background: rgba(10, 13, 18, 0.9);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease;
+}
+
+.char-slot:hover,
+.char-slot.active {
+  border-color: #ffffff;
+  transform: scale(1.08);
+}
+
+.slot-top { top: 0; left: 61px; }
+.slot-left { top: 61px; left: 0; }
+.slot-right { top: 61px; right: 0; }
+.slot-bottom { bottom: 0; left: 61px; opacity: 0.75; cursor: default; }
+
+.char-initial {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  color: var(--c);
+}
+
+.char-label,
+.char-hint {
+  font-family: var(--font-cond);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* ===================== iFRUIT SMARTPHONE ===================== */
+.ifruit-phone {
+  position: absolute;
+  bottom: 20px;
+  right: 24px;
+  width: 262px;
+  height: 438px;
+  background: #0d1117;
+  border: 3px solid #2d3542;
+  border-radius: 26px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.72);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  z-index: 18;
+  animation: phoneSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes phoneSlide {
+  from { transform: translateY(80px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.phone-notch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 8px;
+  background: #080b10;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.phone-brand {
+  color: #ffffff;
+  letter-spacing: 0.06em;
+}
+
+.phone-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.phone-screen {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: linear-gradient(165deg, #132136 0%, #0d131d 100%);
+}
+
+.phone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.phone-app-btn {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 13px 8px;
+  color: #ffffff;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+
+.phone-app-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
+.app-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: #090b0f;
+  font-weight: 700;
+}
+
+.phone-list-btn {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 9px 11px;
+  color: #f1f5f9;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.phone-list-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.phone-list-btn small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ===================== LS CUSTOMS & AMMU-NATION SHOP DRAWER ===================== */
+.shop-drawer {
+  position: fixed;
+  top: 28px;
+  left: 28px;
+  width: 328px;
+  max-height: calc(100vh - 56px);
+  z-index: 22;
+  background: rgba(8, 10, 14, 0.92);
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.65);
+}
+
+.shop-header {
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #1d1533 0%, #0f172a 100%);
+  border-bottom: 2px solid #f5f7fa;
+}
+
+.shop-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.06em;
+}
+
+.shop-sub {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.shop-items {
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shop-row {
+  appearance: none;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  padding: 11px 13px;
+  color: #f1f5f9;
+  font-size: 13.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.shop-row:hover {
+  background: #f5f7fa;
+  color: #090b0f;
+}
+
+.shop-price {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--gta-green);
+}
+
+.shop-row:hover .shop-price {
+  color: #15803d;
+}
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 6px 4px;
+}
+
+.color-swatch {
+  height: 30px;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+  border-color: #ffffff;
+}
+
+.shop-section-label {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  padding: 8px 4px 2px;
+  text-transform: uppercase;
+}
+
+.shop-exit-btn {
+  margin: 10px;
+  padding: 11px;
+  background: #f5f7fa;
+  color: #090b0f;
+  border: none;
+  font-family: var(--font-cond);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+/* ===================== WASTED OVERLAY ===================== */
+.wasted-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.wasted-band {
+  width: 100%;
+  padding: 24px 0;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0.78) 25%,
+    rgba(0, 0, 0, 0.78) 75%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  text-align: center;
+  animation: bannerPop 0.45s ease-out;
+}
+
+.wasted-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(64px, 9vw, 108px);
+  letter-spacing: 0.06em;
+  color: #d92626;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.95);
+}
+
+/* ===================== GTA V PAUSE MENU ===================== */
+.pause-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 28;
+  background: rgba(6, 9, 14, 0.76);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3vw, 40px);
+}
+
+.pause-shell {
+  width: min(1040px, 100%);
+  height: min(680px, 92vh);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pause-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 2px 4px;
+}
+
+.pause-game-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+.pause-player-meta {
+  display: flex;
+  gap: 18px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: rgba(240, 244, 248, 0.88);
+}
+
+#pause-cash {
+  color: var(--gta-green);
+}
+
+.pause-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+
+.pause-tab {
+  appearance: none;
+  border: none;
+  border-top: 3px solid transparent;
+  background: rgba(10, 12, 16, 0.92);
+  color: rgba(240, 244, 248, 0.8);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  padding: 11px 12px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.pause-tab:hover {
+  background: rgba(30, 36, 46, 0.95);
+  color: #ffffff;
+}
+
+.pause-tab.active {
+  background: #f5f7fa;
+  color: #090b0f;
+  border-top-color: var(--gta-blue);
+}
+
+.pause-tab.resume-tab {
+  background: rgba(46, 125, 62, 0.88);
+  color: #ffffff;
+}
+
+.pause-tab.resume-tab:hover {
+  background: #3aa350;
+}
+
+.pause-body {
+  flex: 1;
+  min-height: 0;
+  background: rgba(9, 12, 17, 0.92);
+  border: 1px solid var(--border-subtle);
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.pause-panel {
+  display: none;
+  height: 100%;
+}
+
+.pause-panel.active {
+  display: block;
+}
+
+.map-layout {
+  display: grid;
+  grid-template-columns: 1fr 270px;
+  gap: 18px;
+  height: 100%;
+}
+
+.map-canvas-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #122638;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+#pause-map-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1 / 1;
+  cursor: crosshair;
+}
+
+.map-caption {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  background: rgba(8, 10, 14, 0.82);
+  padding: 5px 10px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.map-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.map-legend h3 {
+  font-family: var(--font-cond);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+
+.poi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.poi-item {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid transparent;
+  padding: 8px 10px;
+  color: #f1f5f9;
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.poi-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-subtle);
+}
+
+.poi-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ghost-btn {
+  padding: 9px 14px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: #f1f5f9;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  background: #f5f7fa;
+  color: #090b0f;
+}
+
+/* Missions, Controls & Settings Grids */
+.missions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.mission-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mission-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mission-badge {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.mission-reward {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--gta-green);
+}
+
+.mission-card h4 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mission-card p {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.ctrl-group h4 {
+  font-family: var(--font-cond);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--gta-blue);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.ctrl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+}
+
+.ctrl-row span:first-child {
+  color: var(--text-muted);
+}
+
+.settings-list {
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 13.5px;
+}
+
+.setting-row input[type='range'] {
+  width: 180px;
+  accent-color: var(--gta-blue);
+}
+
+.setting-row select,
+.setting-row input[type='checkbox'] {
+  accent-color: var(--gta-blue);
+}
+
+.setting-row select {
+  background: #141922;
+  color: #ffffff;
+  border: 1px solid var(--border-strong);
+  padding: 5px 10px;
+  font-family: var(--font-ui);
+}
+
+@media (max-width: 820px) {
+  .radar-wrap {
+    width: 196px;
+    bottom: 14px;
+    left: 14px;
+  }
+  #radar-canvas {
+    height: 126px;
+  }
+  .map-layout {
+    grid-template-columns: 1fr;
+  }
+}

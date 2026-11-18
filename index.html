@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grand Theft Auto V — Los Santos</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700&family=Inter:wght@400;500;600;700&family=Oswald:wght@600;700&family=Playfair+Display:ital,wght@1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+
+      <!-- Screen FX layers (special ability tint, damage flash, switch pulse, wasted B&W) -->
+      <div id="fx-layer"></div>
+      <div id="flash-layer"></div>
+
+      <!-- ===================== TITLE SCREEN ===================== -->
+      <section id="title-screen" class="screen active">
+        <div class="title-vignette"></div>
+        <div class="title-content">
+          <div class="gtav-logo" aria-label="Grand Theft Auto V">
+            <div class="logo-stack">
+              <span class="logo-line">grand</span>
+              <span class="logo-line">theft</span>
+              <span class="logo-line">auto</span>
+            </div>
+            <div class="logo-v-emblem">
+              <svg viewBox="0 0 150 135" class="v-svg" aria-hidden="true">
+                <defs>
+                  <linearGradient id="vBillGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#9be186" />
+                    <stop offset="45%" stop-color="#4e9e48" />
+                    <stop offset="100%" stop-color="#1e5622" />
+                  </linearGradient>
+                  <linearGradient id="vGoldGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="#bfa15f" />
+                    <stop offset="50%" stop-color="#f5e6b8" />
+                    <stop offset="100%" stop-color="#bfa15f" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M14 10 L50 10 L75 86 L100 10 L136 10 L92 124 L58 124 Z"
+                  fill="url(#vBillGrad)"
+                  stroke="#0b0e11"
+                  stroke-width="7"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M21 15 L46 15 L75 100 L104 15 L129 15 L88 119 L62 119 Z"
+                  fill="none"
+                  stroke="#e8f3df"
+                  stroke-width="2.5"
+                />
+                <!-- Engraved V banner ribbon -->
+                <path
+                  d="M18 70 Q75 56 132 70 L126 92 Q75 78 24 92 Z"
+                  fill="#122615"
+                  stroke="url(#vGoldGrad)"
+                  stroke-width="2.5"
+                />
+                <text
+                  x="75"
+                  y="81"
+                  text-anchor="middle"
+                  fill="#f4e8c1"
+                  font-family="Georgia, serif"
+                  font-weight="700"
+                  font-size="16"
+                  letter-spacing="5"
+                >
+                  FIVE
+                </text>
+              </svg>
+            </div>
+          </div>
+          <p class="title-location">LOS SANTOS &bull; SAN ANDREAS</p>
+        </div>
+
+        <nav class="title-footer">
+          <div class="title-menu">
+            <button id="btn-title-settings" class="title-tab" type="button">SETTINGS</button>
+            <button id="btn-title-controls" class="title-tab" type="button">CONTROLS</button>
+            <button id="btn-start-story" class="title-tab primary" type="button">STORY MODE</button>
+          </div>
+        </nav>
+
+        <!-- Clean modal drawer on title screen when Controls or Settings clicked -->
+        <div id="title-modal" class="title-modal hidden">
+          <div class="title-modal-card">
+            <div class="title-modal-header">
+              <h2 id="title-modal-heading">CONTROLS</h2>
+              <button id="btn-title-modal-close" class="icon-close" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div id="title-modal-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== IN-GAME GTA V HUD ===================== -->
+      <section id="hud" class="hidden">
+        <!-- Top-Left authentic GTA V context help box -->
+        <div id="context-prompt" class="gta-help-box hidden"></div>
+
+        <!-- Top-Right Wanted Stars + Cash + Ammo -->
+        <div class="hud-top-right">
+          <div id="wanted-stars" class="wanted-stars hidden" aria-label="Wanted level">
+            <span class="star">★</span>
+            <span class="star">★</span>
+            <span class="star">★</span>
+            <span class="star">★</span>
+            <span class="star">★</span>
+          </div>
+          <div id="hud-cash" class="hud-cash">$28,500</div>
+          <div id="hud-cash-delta" class="hud-cash-delta hidden">+$500</div>
+          <div id="hud-ammo" class="hud-ammo hidden">
+            <span id="ammo-mag">12</span><span id="ammo-reserve"> / 96</span>
+          </div>
+          <div id="hud-timer" class="hud-timer hidden">01:30</div>
+        </div>
+
+        <!-- Center minimal GTA V reticle -->
+        <div id="reticle" class="reticle hidden"></div>
+
+        <!-- Big GTA V Event Banner (Mission Passed / Stunt Jump / Mission Start) -->
+        <div id="big-banner" class="big-banner hidden">
+          <div id="banner-title" class="banner-title">MISSION PASSED</div>
+          <div id="banner-sub" class="banner-sub">RESPECT +</div>
+          <div id="banner-extra" class="banner-extra"></div>
+        </div>
+
+        <!-- Bottom-Left Iconic GTA V Rectangular Radar + 3-Bar Strip -->
+        <div id="radar-wrap" class="radar-wrap">
+          <canvas id="radar-canvas" width="248" height="158"></canvas>
+          <div class="radar-bars">
+            <div class="bar-track health-track">
+              <div id="bar-health" class="bar-fill health-fill"></div>
+            </div>
+            <div class="bar-track armor-track">
+              <div id="bar-armor" class="bar-fill armor-fill"></div>
+            </div>
+            <div class="bar-track special-track">
+              <div id="bar-special" class="bar-fill special-fill"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom-Center Mission Objective Subtitle -->
+        <div id="objective-bar" class="objective-bar hidden"></div>
+
+        <!-- Bottom-Right Ephemeral Vehicle / Street / District Readout + Speed -->
+        <div class="hud-bottom-right">
+          <div id="speed-box" class="speed-box hidden">
+            <span id="speed-val">0</span>
+            <span id="speed-unit">MPH</span>
+          </div>
+          <div id="area-toast" class="area-toast hidden">
+            <div id="toast-vehicle" class="toast-vehicle"></div>
+            <div id="toast-street" class="toast-street"></div>
+            <div id="toast-district" class="toast-district"></div>
+          </div>
+        </div>
+
+        <!-- GTA V Radial Weapon Wheel (Hold TAB) -->
+        <div id="weapon-wheel" class="radial-overlay hidden">
+          <div class="wheel-container">
+            <div id="weapon-slots" class="wheel-slots"></div>
+            <div class="wheel-center">
+              <div id="wheel-wep-name" class="wheel-title">UNARMED</div>
+              <div id="wheel-wep-ammo" class="wheel-sub">MELEE</div>
+              <div class="wheel-stats">
+                <div class="stat-row"><span>Damage</span><div class="stat-bar"><i id="st-dmg"></i></div></div>
+                <div class="stat-row"><span>Fire Rate</span><div class="stat-bar"><i id="st-rof"></i></div></div>
+                <div class="stat-row"><span>Accuracy</span><div class="stat-bar"><i id="st-acc"></i></div></div>
+                <div class="stat-row"><span>Range</span><div class="stat-bar"><i id="st-rng"></i></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GTA V Radio Station Wheel (Hold Q in vehicle) -->
+        <div id="radio-wheel" class="radial-overlay hidden">
+          <div class="wheel-container radio-container">
+            <div id="radio-slots" class="wheel-slots"></div>
+            <div class="wheel-center">
+              <div id="wheel-radio-name" class="wheel-title">WEST COAST CLASSICS</div>
+              <div id="wheel-radio-track" class="wheel-sub">Pacific Blvd Cruisin'</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GTA V Bottom-Right Character Switch Wheel (Hold ALT) -->
+        <div id="char-wheel" class="char-wheel hidden">
+          <button class="char-slot slot-top" data-char="franklin" type="button">
+            <span class="char-initial" style="--c:#5ec96f">F</span>
+            <span class="char-label">Franklin</span>
+          </button>
+          <button class="char-slot slot-left" data-char="michael" type="button">
+            <span class="char-initial" style="--c:#59a9e6">M</span>
+            <span class="char-label">Michael</span>
+          </button>
+          <button class="char-slot slot-right" data-char="trevor" type="button">
+            <span class="char-initial" style="--c:#f09446">T</span>
+            <span class="char-label">Trevor</span>
+          </button>
+          <div class="char-slot slot-bottom">
+            <span class="char-hint">1 / 2 / 3</span>
+          </div>
+        </div>
+
+        <!-- Sleek iFruit Smartphone (P or ArrowUp) -->
+        <aside id="ifruit-phone" class="ifruit-phone hidden" aria-label="iFruit Phone">
+          <div class="phone-notch">
+            <span id="phone-clock">16:40</span>
+            <span class="phone-brand">iFruit</span>
+            <button id="phone-close" class="phone-close" type="button" title="Close">&times;</button>
+          </div>
+          <div id="phone-screen" class="phone-screen"></div>
+        </aside>
+      </section>
+
+      <!-- ===================== LOS SANTOS CUSTOMS / AMMU-NATION ===================== -->
+      <aside id="shop-drawer" class="shop-drawer hidden">
+        <div class="shop-header">
+          <div id="shop-title" class="shop-title">LOS SANTOS CUSTOMS</div>
+          <div id="shop-sub" class="shop-sub">What's wrong with her now?</div>
+        </div>
+        <div id="shop-items" class="shop-items"></div>
+        <button id="shop-exit" class="shop-exit-btn" type="button">EXIT SHOP</button>
+      </aside>
+
+      <!-- ===================== WASTED OVERLAY ===================== -->
+      <section id="wasted-screen" class="wasted-screen hidden">
+        <div class="wasted-band">
+          <div class="wasted-text">WASTED</div>
+        </div>
+      </section>
+
+      <!-- ===================== GTA V PAUSE MENU ===================== -->
+      <section id="pause-menu" class="pause-menu hidden">
+        <div class="pause-shell">
+          <header class="pause-header">
+            <div class="pause-game-title">GRAND THEFT AUTO V</div>
+            <div class="pause-player-meta">
+              <span id="pause-char-name">Franklin Clinton</span>
+              <span id="pause-time">THU 16:40</span>
+              <span id="pause-cash">$28,500</span>
+            </div>
+          </header>
+
+          <nav class="pause-tabs">
+            <button class="pause-tab active" data-tab="map" type="button">MAP</button>
+            <button class="pause-tab" data-tab="missions" type="button">BRIEF</button>
+            <button class="pause-tab" data-tab="controls" type="button">CONTROLS</button>
+            <button class="pause-tab" data-tab="settings" type="button">SETTINGS</button>
+            <button id="btn-resume" class="pause-tab resume-tab" type="button">RESUME</button>
+          </nav>
+
+          <div class="pause-body">
+            <!-- MAP TAB -->
+            <div id="tab-map" class="pause-panel active">
+              <div class="map-layout">
+                <div class="map-canvas-wrap">
+                  <canvas id="pause-map-canvas" width="640" height="640"></canvas>
+                  <div class="map-caption">Click anywhere on Los Santos to set a GPS Waypoint</div>
+                </div>
+                <div class="map-legend">
+                  <h3>POINTS OF INTEREST</h3>
+                  <div id="map-poi-list" class="poi-list"></div>
+                  <button id="btn-clear-waypoint" class="ghost-btn" type="button">CLEAR WAYPOINT</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- BRIEF / MISSIONS TAB -->
+            <div id="tab-missions" class="pause-panel">
+              <div id="missions-list" class="missions-grid"></div>
+            </div>
+
+            <!-- CONTROLS TAB -->
+            <div id="tab-controls" class="pause-panel">
+              <div id="pause-controls-content"></div>
+            </div>
+
+            <!-- SETTINGS TAB -->
+            <div id="tab-settings" class="pause-panel">
+              <div id="pause-settings-content"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
