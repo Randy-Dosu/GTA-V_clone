@@ -58,6 +58,7 @@ pathfinding, vehicles, weapons, ragdoll builder, minimap, full Mirror-based mult
 
 ```
 external/SanAndreasUnity/          ← full Unity project (gitignored)
+├── Assets/Scripts/GameModes/GtaVMod/  ← ✅ GTA V plugin (installed & ready)
 ├── Assets/Scripts/Behaviours/     ← gameplay: Ped, PedAI, vehicles, NPC spawner, minimap
 ├── Assets/Scripts/Importing/      ← GTA SA asset parsers (IMG/DFF/TXD/COL/IFP)
 ├── Assets/Scripts/Networking/     ← Mirror multiplayer sync (PedSync, VehicleSync)
@@ -65,6 +66,18 @@ external/SanAndreasUnity/          ← full Unity project (gitignored)
 ├── Docs/                          ← upstream dev notes (Map.md, Multiplayer.md, weapons.md)
 └── ProjectSettings/ProjectVersion.txt
 ```
+
+## ✅ Path A is implemented — `sau-gtav-plugin/`
+
+The GTA V plugin lives in the tracked folder **`sau-gtav-plugin/`** (5 C# files + README) and a
+copy is already installed at `external/SanAndreasUnity/Assets/Scripts/GameModes/GtaVMod/`. Open
+the Unity project and play — no extra wiring needed. Every file uses SAU's verified real APIs
+(`Ped.SpawnPed`, `Vehicle.CreateInFrontOf`, `/skin` command pipeline, `PauseMenuWindow`,
+`GameModeManager.RegisterGameMode`, `DayTimeManager.SetTime`).
+
+Includes: V-style 3-protagonist character switch (T key), iFruit phone window (mechanic
+delivery, missions, clock, stats), a data-driven mission framework with world markers,
+timers & rewards, and a persistent GTA V HUD (cash/objectives/banners).
 
 If you decide to go down Path A, say the word and I'll draft the concrete plugin architecture
 (character switch + V-style phone + mission framework) as C# classes ready to drop into
