@@ -72,8 +72,9 @@ const PED_HAIR_STYLES: Array<'short' | 'long' | 'bald' | 'cap' | 'beanie' | 'pon
 const PED_OUTFITS: Array<'tee' | 'hoodie' | 'jacket' | 'suit' | 'athletic'> = [
   'tee', 'hoodie', 'jacket', 'suit', 'athletic', 'tee', 'hoodie', 'jacket',
 ];
-const PED_BODY_TYPES: Array<'slim' | 'average' | 'heavy' | 'athletic'> = [
-  'slim', 'average', 'average', 'heavy', 'athletic', 'average', 'slim', 'heavy',
+const PED_BODY_TYPES: Array<'slim' | 'average' | 'heavy' | 'athletic' | 'female'> = [
+  'slim', 'average', 'female', 'heavy', 'athletic', 'average', 'female', 'heavy',
+  'average', 'slim', 'female', 'athletic', 'average', 'female', 'slim', 'average',
 ];
 
 export class TrafficAndPeds {
@@ -210,6 +211,13 @@ export class TrafficAndPeds {
   private initPedestrians(): void {
     for (let i = 0; i < this.maxPeds; i++) {
       const spot = this.randomSidewalkPos(new THREE.Vector3(0, 0, 0), 25, 195);
+      // GTA VI-style street diversity: female builds pair with long/ponytail
+      // hairstyles & no beards; male builds keep the full style range
+      const pedBody = PED_BODY_TYPES[i % PED_BODY_TYPES.length];
+      let pedHair = PED_HAIR_STYLES[i % PED_HAIR_STYLES.length];
+      if (pedBody === 'female' && (pedHair === 'bald' || pedHair === 'cap' || pedHair === 'beanie' || pedHair === 'mohawk')) {
+        pedHair = i % 2 === 0 ? 'long' : 'ponytail';
+      }
       const rig = new CharacterRig({
         skin: PED_SKINS[i % PED_SKINS.length],
         hair: PED_HAIR[i % PED_HAIR.length],
@@ -217,10 +225,10 @@ export class TrafficAndPeds {
         pants: PED_PANTS[i % PED_PANTS.length],
         shoes: i % 2 === 0 ? 0xf1f5f9 : 0x1f2937,
         hasSunglasses: i % 3 === 0,
-        hairStyle: PED_HAIR_STYLES[i % PED_HAIR_STYLES.length],
+        hairStyle: pedHair,
         outfit: PED_OUTFITS[i % PED_OUTFITS.length],
-        bodyType: PED_BODY_TYPES[i % PED_BODY_TYPES.length],
-        beard: i % 4 === 1,
+        bodyType: pedBody,
+        beard: pedBody !== 'female' && i % 4 === 1,
         detail: 'simple',
       });
       rig.root.position.copy(spot);

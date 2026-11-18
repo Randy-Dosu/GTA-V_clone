@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { CameraController } from '../src/core/CameraController';
+import { CharacterRig } from '../src/entities/CharacterMesh';
 import { Player } from '../src/entities/Player';
 import { Vehicle } from '../src/entities/Vehicle';
 import { VehicleFactory } from '../src/entities/VehicleFactory';
@@ -241,6 +242,40 @@ describe('Player, Vehicles, Helicopter & Camera Physics', () => {
       );
     }
     expect(Math.abs(car.bodyRoll)).toBeGreaterThan(0.01);
+  });
+
+  it('renders female builds with distinct proportions, pelvis yaw & dynamic spine lean', () => {
+    const scene = new THREE.Scene();
+    const male = new CharacterRig({ skin: 0xa78168, hair: 0x1c1410, top: 0x2a2f38, pants: 0x1f2937, shoes: 0x111318 });
+    const female = new CharacterRig({
+      skin: 0x8a5a3b, hair: 0x2a1a10, top: 0x7f1d3a, pants: 0x1f2937, shoes: 0x111318, bodyType: 'female',
+    });
+    scene.add(male.root, female.root);
+
+    // Female builds stand lower (1.76 m vs 1.82 m total height)
+    male.updateAnimation(0.016, 0, false, true, false);
+    female.updateAnimation(0.016, 0, false, true, false);
+    expect(female.hips.position.y).toBeLessThan(male.hips.position.y - 0.03);
+    expect(female.hips.position.y).toBeGreaterThan(0.8);
+
+    // Pelvis yaw counter-rotates against the shoulders during the gait
+    female.hips.rotation.y = 0;
+    let maxPelvisYaw = 0;
+    for (let i = 0; i < 45; i++) {
+      female.updateAnimation(1 / 60, 1.4, false, true, false);
+      maxPelvisYaw = Math.max(maxPelvisYaw, Math.abs(female.hips.rotation.y));
+    }
+    expect(maxPelvisYaw).toBeGreaterThan(0.01);
+
+    // Spine leans forward under acceleration and into turns
+    for (let i = 0; i < 60; i++) {
+      female.updateAnimation(1 / 60, 4.5, false, true, false, 0, false, false, 7, 0);
+    }
+    expect(female.torso.rotation.x).toBeGreaterThan(0.08);
+    for (let i = 0; i < 60; i++) {
+      female.updateAnimation(1 / 60, 4.5, false, true, false, 0, false, false, 0, 2.2);
+    }
+    expect(Math.abs(female.torso.rotation.z)).toBeGreaterThan(0.05);
   });
 
   it('simulates proportional analog driving, steering, drifting, boost, collisions, LS Customs & explosions', () => {

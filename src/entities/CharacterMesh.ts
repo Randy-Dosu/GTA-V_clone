@@ -13,7 +13,7 @@ export type HairStyle =
 
 export type OutfitStyle = 'tee' | 'hoodie' | 'jacket' | 'suit' | 'police' | 'athletic';
 
-export type BodyType = 'slim' | 'average' | 'heavy' | 'athletic';
+export type BodyType = 'slim' | 'average' | 'heavy' | 'athletic' | 'female';
 
 export interface CharacterColors {
   skin: number;
@@ -37,10 +37,11 @@ const BODY_SCALES: Record<BodyType, { torso: number; limbs: number; shoulders: n
   average: { torso: 1.0, limbs: 1.0, shoulders: 1.0, hips: 1.0 },
   heavy: { torso: 1.24, limbs: 1.08, shoulders: 1.06, hips: 1.18 },
   athletic: { torso: 1.06, limbs: 1.0, shoulders: 1.12, hips: 0.98 },
+  female: { torso: 0.8, limbs: 0.92, shoulders: 0.86, hips: 1.12 },
 };
 
 /** Paint a human face onto a canvas texture (face centered at u = 0.25 → +Z front of sphere). */
-function makeFaceTexture(skinHex: number, beard: boolean): THREE.CanvasTexture {
+function makeFaceTexture(skinHex: number, beard: boolean, female = false): THREE.CanvasTexture {
   const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
@@ -104,23 +105,48 @@ function makeFaceTexture(skinHex: number, beard: boolean): THREE.CanvasTexture {
     ctx.fill();
   }
 
-  // Eyebrows
-  ctx.strokeStyle = 'rgba(30,22,16,0.9)';
-  ctx.lineWidth = size * 0.022;
+  // Eyebrows — thinner, higher-arched and softly shaded for female faces
+  ctx.strokeStyle = female ? 'rgba(45,30,20,0.78)' : 'rgba(30,22,16,0.9)';
+  ctx.lineWidth = size * (female ? 0.015 : 0.022);
   ctx.lineCap = 'round';
   for (const s of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(fx + s * eyeDX - size * 0.055, eyeY - size * 0.085);
+    ctx.moveTo(fx + s * eyeDX - size * 0.055, eyeY - size * (female ? 0.08 : 0.085));
     ctx.quadraticCurveTo(
-      fx + s * eyeDX, eyeY - size * 0.115,
-      fx + s * eyeDX + size * 0.055, eyeY - size * 0.08
+      fx + s * eyeDX,
+      eyeY - size * (female ? 0.125 : 0.115),
+      fx + s * eyeDX + size * 0.055,
+      eyeY - size * (female ? 0.075 : 0.08)
     );
+    ctx.stroke();
+  }
+
+  // Soft cheekbone shading & smile creases — reads as real facial structure
+  ctx.fillStyle = 'rgba(70,40,26,0.14)';
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(fx + s * size * 0.11, eyeY + size * 0.13, size * 0.07, size * 0.045, s * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(60,35,24,0.16)';
+  ctx.lineWidth = size * 0.008;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(fx + s * size * 0.085, mouthY - size * 0.045);
+    ctx.quadraticCurveTo(fx + s * size * 0.105, mouthY - size * 0.01, fx + s * size * 0.09, mouthY + size * 0.02);
     ctx.stroke();
   }
 
   // Eyes (sclera, iris, pupil, highlight, upper lid line)
   for (const s of [-1, 1]) {
     const ex = fx + s * eyeDX;
+    if (female) {
+      // Smoky eyeshadow above the lid line
+      ctx.fillStyle = 'rgba(88,58,44,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(ex, eyeY - size * 0.032, size * 0.05, size * 0.028, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = '#f4efe8';
     ctx.beginPath();
     ctx.ellipse(ex, eyeY, size * 0.042, size * 0.026, 0, 0, Math.PI * 2);
@@ -155,10 +181,10 @@ function makeFaceTexture(skinHex: number, beard: boolean): THREE.CanvasTexture {
   ctx.ellipse(fx - size * 0.012, eyeY + size * 0.07, size * 0.012, size * 0.045, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Mouth (lips)
-  ctx.fillStyle = 'rgba(150,80,75,0.85)';
+  // Mouth (lips) — fuller, rosier for female faces
+  ctx.fillStyle = female ? 'rgba(178,88,84,0.92)' : 'rgba(150,80,75,0.85)';
   ctx.beginPath();
-  ctx.ellipse(fx, mouthY, size * 0.062, size * 0.02, 0, 0, Math.PI * 2);
+  ctx.ellipse(fx, mouthY, size * (female ? 0.07 : 0.062), size * (female ? 0.026 : 0.02), 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = 'rgba(70,35,30,0.9)';
   ctx.lineWidth = size * 0.01;
@@ -197,12 +223,18 @@ export class CharacterRig {
   private faceMat: THREE.MeshStandardMaterial;
   private beard: boolean;
   private skinHex: number;
+  /** Female builds run slightly shorter with a distinct walk style */
+  private isFemale = false;
+  private baseHipY = 0.92;
 
   private weaponMeshes: Partial<Record<WeaponId, THREE.Object3D>> = {};
   private currentWeapon: WeaponId = 'unarmed';
   private walkPhase = Math.random() * Math.PI * 2;
   private punchTimer = 0;
   private recoilTimer = 0;
+  /** Smoothed acceleration lean (spine pitch) & turn lean (spine roll) */
+  private leanSmooth = 0;
+  private turnSmooth = 0;
 
   constructor(colors: CharacterColors, withWeapons = false) {
     const body = BODY_SCALES[colors.bodyType ?? 'average'];
@@ -221,8 +253,10 @@ export class CharacterRig {
     });
     this.pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, roughness: 0.84 });
     this.shoeMat = new THREE.MeshStandardMaterial({ color: colors.shoes, roughness: 0.55 });
+    this.isFemale = (colors.bodyType ?? 'average') === 'female';
+    this.baseHipY = this.isFemale ? 0.87 : 0.92;
     this.faceMat = new THREE.MeshStandardMaterial({
-      map: makeFaceTexture(colors.skin, this.beard),
+      map: makeFaceTexture(colors.skin, this.beard, this.isFemale),
       roughness: 0.6,
     });
 
@@ -239,8 +273,8 @@ export class CharacterRig {
     contactShadow.position.y = 0.025;
     this.root.add(contactShadow);
 
-    // Hips at 0.92m height (total standing character height ~1.82m)
-    this.hips.position.y = 0.92;
+    // Hips at base height (1.82 m male standing height, 1.76 m female)
+    this.hips.position.y = this.baseHipY;
     this.root.add(this.hips);
 
     // Pelvis — tapered cylinder reads as hips rather than a box
@@ -261,6 +295,14 @@ export class CharacterRig {
     chest.position.y = 0.28;
     chest.castShadow = true;
     this.torso.add(chest);
+
+    if (this.isFemale) {
+      // Subtle contoured chest form under the top
+      const form = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), this.topMat);
+      form.scale.set(1.55, 0.72, 0.95);
+      form.position.set(0, 0.34, 0.1 * body.torso);
+      this.torso.add(form);
+    }
 
     // Inner shirt / undershirt front panel
     const innerShirt = new THREE.Mesh(
@@ -385,6 +427,10 @@ export class CharacterRig {
     const buildArm = (side: -1 | 1): { arm: THREE.Group; elbow: THREE.Group } => {
       const arm = new THREE.Group();
       arm.position.set(side * 0.24 * body.shoulders, 0.5, 0);
+      // Deltoid cap so the arm reads as connected at the shoulder joint
+      const deltoid = new THREE.Mesh(new THREE.SphereGeometry(0.062 * body.limbs, 10, 8), this.topMat);
+      deltoid.castShadow = true;
+      arm.add(deltoid);
       const upperLen = 0.27;
       const upper = new THREE.Mesh(
         new THREE.CylinderGeometry(0.055 * body.limbs, 0.05 * body.limbs, upperLen, 8),
@@ -403,10 +449,13 @@ export class CharacterRig {
       );
       forearm.position.y = -foreLen * 0.5;
       forearm.castShadow = true;
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.045 * body.limbs, 8, 6), this.skinMat);
-      hand.scale.set(0.8, 1.15, 0.9);
-      hand.position.y = -foreLen - 0.04;
-      elbow.add(forearm, hand);
+      // Palm + thumb reads as a real hand, not a blob
+      const palm = new THREE.Mesh(new THREE.BoxGeometry(0.07 * body.limbs, 0.095, 0.048), this.skinMat);
+      palm.position.y = -foreLen - 0.045;
+      const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.02 * body.limbs, 6, 5), this.skinMat);
+      thumb.scale.set(0.8, 1.3, 0.8);
+      thumb.position.set(-side * 0.036 * body.limbs, -foreLen - 0.02, 0.018);
+      elbow.add(forearm, palm, thumb);
       arm.add(elbow);
       return { arm, elbow };
     };
@@ -444,12 +493,19 @@ export class CharacterRig {
       );
       shin.position.y = -shinLen * 0.5;
       shin.castShadow = true;
-      const shoe = new THREE.Mesh(
-        new THREE.BoxGeometry(0.09 * body.limbs, 0.09, 0.24),
+      // Two-tone sneaker: upper + darker sole & toe cap
+      const shoeUpper = new THREE.Mesh(
+        new THREE.BoxGeometry(0.095 * body.limbs, 0.075, 0.23),
         this.shoeMat
       );
-      shoe.position.set(0, -shinLen - 0.03, 0.05);
-      knee.add(shin, shoe);
+      shoeUpper.position.set(0, -shinLen - 0.02, 0.05);
+      shoeUpper.castShadow = true;
+      const sole = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1 * body.limbs, 0.038, 0.26),
+        new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.6 })
+      );
+      sole.position.set(0, -shinLen - 0.072, 0.055);
+      knee.add(shin, shoeUpper, sole);
       leg.add(knee);
       return { leg, knee };
     };
@@ -559,7 +615,7 @@ export class CharacterRig {
       this.skinHex = colors.skin;
       this.beard = colors.beard ?? this.beard;
       const old = this.faceMat.map;
-      this.faceMat.map = makeFaceTexture(colors.skin, this.beard);
+      this.faceMat.map = makeFaceTexture(colors.skin, this.beard, this.isFemale);
       this.faceMat.needsUpdate = true;
       old?.dispose();
     }
@@ -638,11 +694,22 @@ export class CharacterRig {
     isAiming: boolean,
     aimPitch = 0,
     knockedDown = false,
-    swimming = false
+    swimming = false,
+    /** forward acceleration m/s² — spine leans into bursts & braking */
+    accel = 0,
+    /** yaw rate rad/s — spine bends into turns */
+    turnRate = 0
   ): void {
+    // Dynamic spine lean: acceleration pushes forward/back, yaw bends sideways
+    const leanTarget = THREE.MathUtils.clamp(accel * 0.016, -0.16, 0.2);
+    this.leanSmooth += (leanTarget - this.leanSmooth) * Math.min(1, dt * 6);
+    const turnTarget = THREE.MathUtils.clamp(turnRate * 0.05, -0.22, 0.22);
+    this.turnSmooth += (turnTarget - this.turnSmooth) * Math.min(1, dt * 7);
+
     if (knockedDown) {
       this.hips.position.y = 0.18;
       this.hips.rotation.x = -Math.PI * 0.48;
+      this.hips.rotation.y = 0;
       this.leftArm.rotation.set(0, 0, 0.65);
       this.rightArm.rotation.set(0, 0, -0.65);
       this.leftLeg.rotation.set(0, 0, -0.2);
@@ -682,16 +749,21 @@ export class CharacterRig {
     if (moveSpeed > 0.25 && isGrounded) {
       // Stride-locked gait: step frequency tracks ground speed so feet PLANT
       // instead of skating (a ~1.5 m stride per full leg cycle).
-      const strideFreq = THREE.MathUtils.clamp(moveSpeed * 4.3, 3.4, 14.5);
+      const strideFreq =
+        THREE.MathUtils.clamp(moveSpeed * 4.3, 3.4, 14.5) * (this.isFemale ? 1.07 : 1);
       this.walkPhase += dt * strideFreq;
       const gaitAmp = isSprinting ? 0.82 : 0.5; // ~47° sprint / ~29° walk leg sweep
       const ampScale = Math.min(1, 0.42 + speedRatio * 0.85);
       const swing = Math.sin(this.walkPhase) * gaitAmp * ampScale;
       const swingVel = Math.cos(this.walkPhase) * gaitAmp * ampScale;
       const bob = Math.abs(Math.cos(this.walkPhase)) * (isSprinting ? 0.065 : 0.032);
-      const hipSway = Math.sin(this.walkPhase) * (isSprinting ? 0.05 : 0.028);
+      // Females carry a distinct hip-led walk; males a shoulder-led stride
+      const hipSwayMul = this.isFemale ? 2.1 : 1;
+      const hipSway = Math.sin(this.walkPhase) * (isSprinting ? 0.05 : 0.03) * hipSwayMul;
 
-      this.hips.position.y = 0.92 + bob;
+      this.hips.position.y = this.baseHipY + bob;
+      // Pelvis yaw counter-rotates against the shoulders (real cross-body gait)
+      this.hips.rotation.y = swing * 0.12;
       this.hips.rotation.z = hipSway;
       this.leftLeg.rotation.x = swing;
       this.rightLeg.rotation.x = -swing;
@@ -699,22 +771,25 @@ export class CharacterRig {
       this.leftKnee.rotation.x = Math.max(0.06, -swingVel * 0.85 + 0.12) + (isSprinting ? 0.18 : 0);
       this.rightKnee.rotation.x = Math.max(0.06, swingVel * 0.85 + 0.12) + (isSprinting ? 0.18 : 0);
       // Arms counter-swing against legs with living elbow bend
-      this.leftArm.rotation.x = -swing * (isSprinting ? 1.05 : 0.9);
-      this.rightArm.rotation.x = swing * (isSprinting ? 1.05 : 0.9);
+      const armMul = isSprinting ? 1.05 : this.isFemale ? 0.74 : 0.9;
+      this.leftArm.rotation.x = -swing * armMul;
+      this.rightArm.rotation.x = swing * armMul;
       this.leftElbow.rotation.x = -0.3 - Math.max(0, swing) * 0.55;
       this.rightElbow.rotation.x = -0.3 - Math.max(0, -swing) * 0.55;
-      // Torso counter-rotates against pelvis & leans into the run
-      this.torso.rotation.x = isSprinting ? 0.17 : 0.05;
-      this.torso.rotation.y = -swing * 0.16;
+      // Spine leans into bursts/braking and bends into turns (actor weight shift)
+      this.torso.rotation.x = (isSprinting ? 0.17 : 0.05) + this.leanSmooth;
+      this.torso.rotation.y = -swing * 0.18;
+      this.torso.rotation.z = this.turnSmooth;
       this.head.rotation.x = -this.torso.rotation.x * 0.6 + Math.sin(this.walkPhase * 2) * 0.02;
-      this.head.rotation.y = swing * 0.06;
+      this.head.rotation.y = swing * 0.06 - this.turnSmooth * 0.5;
       this.leftArm.rotation.z = 0.06;
       this.rightArm.rotation.z = -0.06;
       this.leftArm.rotation.y = 0;
       this.rightArm.rotation.y = 0;
     } else if (!isGrounded) {
-      this.hips.position.y = 0.94;
+      this.hips.position.y = this.baseHipY + 0.02;
       this.hips.rotation.z = 0;
+      this.hips.rotation.y = 0;
       this.leftLeg.rotation.x = 0.35;
       this.rightLeg.rotation.x = -0.28;
       this.leftKnee.rotation.x = 0.55;
@@ -735,8 +810,9 @@ export class CharacterRig {
       this.walkPhase += dt * 2.0;
       const breath = Math.sin(this.walkPhase) * 0.012;
       const weightShift = Math.sin(this.walkPhase * 0.45) * 0.035;
-      this.hips.position.y = 0.92 + breath;
-      this.hips.rotation.z = weightShift * 0.5;
+      this.hips.position.y = this.baseHipY + breath;
+      this.hips.rotation.z = weightShift * (this.isFemale ? 0.8 : 0.5);
+      this.hips.rotation.y = 0;
       this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, weightShift * 0.35, dt * 10);
       this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, -weightShift * 0.35, dt * 10);
       this.leftKnee.rotation.x = THREE.MathUtils.lerp(this.leftKnee.rotation.x, 0.05, dt * 10);
@@ -747,8 +823,9 @@ export class CharacterRig {
       this.rightArm.rotation.z = -0.06 - Math.sin(this.walkPhase * 0.7 + 1.1) * 0.02;
       this.leftElbow.rotation.x = THREE.MathUtils.lerp(this.leftElbow.rotation.x, -0.14, dt * 10);
       this.rightElbow.rotation.x = THREE.MathUtils.lerp(this.rightElbow.rotation.x, -0.14, dt * 10);
-      this.torso.rotation.x = THREE.MathUtils.lerp(this.torso.rotation.x, 0, dt * 8);
+      this.torso.rotation.x = THREE.MathUtils.lerp(this.torso.rotation.x, this.leanSmooth * 0.5, dt * 8);
       this.torso.rotation.y = THREE.MathUtils.lerp(this.torso.rotation.y, Math.sin(this.walkPhase * 0.45) * 0.03, dt * 6);
+      this.torso.rotation.z = this.turnSmooth * 0.5;
       this.head.rotation.x = THREE.MathUtils.lerp(this.head.rotation.x, Math.sin(this.walkPhase) * 0.02, dt * 6);
       this.head.rotation.y = THREE.MathUtils.lerp(this.head.rotation.y, Math.sin(this.walkPhase * 0.32) * 0.14, dt * 3.2);
     }

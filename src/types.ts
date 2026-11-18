@@ -27,7 +27,7 @@ export interface CharacterProfile {
   shoeColor: number;
   hairStyle?: 'short' | 'long' | 'bald' | 'cap' | 'beanie' | 'ponytail' | 'afro' | 'mohawk';
   outfit?: 'tee' | 'hoodie' | 'jacket' | 'suit' | 'police' | 'athletic';
-  bodyType?: 'slim' | 'average' | 'heavy' | 'athletic';
+  bodyType?: 'slim' | 'average' | 'heavy' | 'athletic' | 'female';
   beard?: boolean;
   defaultSpawn: THREE.Vector3;
   defaultHeading: number;

@@ -27,6 +27,8 @@ export class Player {
   public heading = 0;
   public grounded = true;
   public isSprinting = false;
+  private lastAnimSpeed = 0;
+  private lastAnimHeading = 0;
   public isAiming = false;
   public swimming = false;
 
@@ -352,9 +354,9 @@ export class Player {
     const targetVx = wishX * targetMaxSpeed;
     const targetVz = wishZ * targetMaxSpeed;
 
-    const accel = this.swimming ? 3.2 : this.grounded ? (inputLen > 0.1 ? 17 : 20) : 4;
-    this.vel.x = THREE.MathUtils.lerp(this.vel.x, targetVx, Math.min(1, dt * accel));
-    this.vel.z = THREE.MathUtils.lerp(this.vel.z, targetVz, Math.min(1, dt * accel));
+    const moveAccel = this.swimming ? 3.2 : this.grounded ? (inputLen > 0.1 ? 17 : 20) : 4;
+    this.vel.x = THREE.MathUtils.lerp(this.vel.x, targetVx, Math.min(1, dt * moveAccel));
+    this.vel.z = THREE.MathUtils.lerp(this.vel.z, targetVz, Math.min(1, dt * moveAccel));
 
     if (jump && this.grounded && !this.swimming) {
       this.vel.y = 7.6;
@@ -457,6 +459,11 @@ export class Player {
     this.rig.root.rotation.set(0, this.heading, 0);
 
     const hSpeed = Math.hypot(this.vel.x, this.vel.z);
+    // Feed the spine-lean model: forward acceleration & yaw rate
+    const accel = (hSpeed - this.lastAnimSpeed) / Math.max(dt, 0.001);
+    this.lastAnimSpeed = hSpeed;
+    const turnRate = lerpAngleDelta(this.lastAnimHeading, this.heading) / Math.max(dt, 0.001);
+    this.lastAnimHeading = this.heading;
     this.rig.updateAnimation(
       dt,
       hSpeed,
@@ -465,9 +472,18 @@ export class Player {
       aiming,
       -cameraPitch,
       this.dead,
-      this.swimming
+      this.swimming,
+      accel,
+      turnRate
     );
   }
+}
+
+/** Signed shortest-path angle difference in radians */
+function lerpAngleDelta(a: number, b: number): number {
+  let diff = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
+  if (diff < -Math.PI) diff += Math.PI * 2;
+  return diff;
 }
 
 export function lerpAngle(a: number, b: number, t: number): number {
