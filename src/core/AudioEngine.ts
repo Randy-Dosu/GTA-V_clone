@@ -6,6 +6,7 @@ import {
   SoundtrackSong,
 } from '../audio/SoundtrackData';
 import { GameMode, RadioStation, RadioStationId, RADIO_STATIONS, VehicleKind, WeaponId } from '../types';
+import { MusicApi, MusicApiResult } from '../audio/MusicApi';
 
 export interface ImportAudioResult {
   total: number;
@@ -54,11 +55,17 @@ export class AudioEngine {
   private songElapsed = 0;
   private pausedByUser = false;
 
-  // HTMLAudioElement for real studio audio files (imported in-game or via public/music/manifest.json)
+  // HTMLAudioElement for real studio audio files (imported in-game, via public/music/manifest.json, or the music API)
   private htmlAudio: HTMLAudioElement | null = null;
   private htmlAudioSongId: string | null = null;
   private htmlAudioFailed = new Set<string>();
   private manifestLoaded = false;
+
+  // Music API (iTunes / Apple Music Search) resolution for real song streams
+  private musicApi = new MusicApi();
+  private apiTracks = new Map<string, MusicApiResult>();
+  /** Song ids bound to LOCAL audio files (manifest or user import) — excludes API streams */
+  private localAudioIds = new Set<string>();
 
   // Callback whenever station or track changes
   public onTrackChange?: (song: SoundtrackSong | null, station: RadioStation) => void;
@@ -129,6 +136,42 @@ export class AudioEngine {
     return this.catalog.filter((s) => !!s.audioUrl && !this.htmlAudioFailed.has(s.id)).length;
   }
 
+  /** Count of songs bound to locally provided audio files (manifest + user imports) */
+  public getImportedAudioCount(): number {
+    return this.localAudioIds.size;
+  }
+
+  /** Music API metadata (album, artwork, genre) resolved for a catalog song, if any */
+  public getApiTrack(songId: string): MusicApiResult | null {
+    return this.apiTracks.get(songId) ?? null;
+  }
+
+  /**
+   * Resolve a catalog song through the music API and bind its real streaming
+   * preview. Called whenever a song is selected; if the resolved song is the
+   * one currently playing, playback hot-swaps from the instrumental to the
+   * API stream on the next frame. Failures leave the instrumental untouched.
+   */
+  public async ensureApiAudio(song: SoundtrackSong): Promise<MusicApiResult | null> {
+    // Local files (manifest / user import) always win over the API stream
+    if (song.audioUrl) return this.apiTracks.get(song.id) ?? null;
+    const result = await this.musicApi.resolveTrack(song.id, song.artist, song.title);
+    if (result?.previewUrl) {
+      if (!song.audioUrl) song.audioUrl = result.previewUrl;
+      this.apiTracks.set(song.id, result);
+      this.htmlAudioFailed.delete(song.id);
+      // Hot-swap when this exact song is what the player is listening to
+      if (!this.pausedByUser && this.getCurrentSong(this._currentStation)?.id === song.id) {
+        this.stopHtmlAudio();
+        this.htmlAudioSongId = null;
+        this.resetSynthTransport();
+        this.syncDelayToCurrentSong();
+        this.onTrackChange?.(song, this.getStation(this._currentStation));
+      }
+    }
+    return result;
+  }
+
   public setStation(id: RadioStationId, notify = true): void {
     const changed = this._currentStation !== id;
     this._currentStation = id;
@@ -143,6 +186,7 @@ export class AudioEngine {
     if (song) {
       station.track = `${song.artist} — ${song.title}`;
       station.bpm = song.bpm;
+      void this.ensureApiAudio(song).catch(() => {});
     }
     if (notify && changed) {
       this.onTrackChange?.(song, station);
@@ -169,6 +213,7 @@ export class AudioEngine {
     if (song) {
       station.track = `${song.artist} — ${song.title}`;
       station.bpm = song.bpm;
+      void this.ensureApiAudio(song).catch(() => {});
     }
     if (notify) {
       this.onTrackChange?.(song, station);
@@ -198,6 +243,8 @@ export class AudioEngine {
     const station = this.getStation(targetStation);
     station.track = `${song.artist} — ${song.title}`;
     station.bpm = song.bpm;
+    // Fetch the real song from the music API (cached) and stream it when selected
+    void this.ensureApiAudio(song).catch(() => {});
     if (notify) {
       this.onTrackChange?.(song, station);
     }
@@ -217,6 +264,7 @@ export class AudioEngine {
         const exact = this.catalog.find((s) => s.id === key);
         if (exact) {
           exact.audioUrl = url.trim();
+          this.localAudioIds.add(exact.id);
           this.htmlAudioFailed.delete(exact.id);
         } else {
           this.bindAudioByLabel(key, url.trim());
@@ -267,6 +315,7 @@ export class AudioEngine {
       const hitKeyword = song.keywords.some((kw) => norm.includes(kw));
       if (hitKeyword) {
         song.audioUrl = url;
+        this.localAudioIds.add(song.id);
         this.htmlAudioFailed.delete(song.id);
         return { song, wasExisting: true };
       }
@@ -313,6 +362,7 @@ export class AudioEngine {
       audioUrl: url,
     };
     this.catalog.unshift(newSong);
+    this.localAudioIds.add(id);
     this.customGoldCoastIds.unshift(id);
     return { song: newSong, wasExisting: false };
   }

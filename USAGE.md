@@ -171,7 +171,9 @@ The game includes **9 curated songs** by **Stonebwoy** and **Kweku Smoke** acros
 | **Scatter Der 96.5** | Kweku Smoke | *Sober*, *Faith*, *Survivor*, *Hallelujah* |
 | **Radio Off** | — | Mutes soundtrack (city & engine SFX only) |
 
-Every track plays out of the box using a tempo- and key-matched Web Audio instrumental riddim. To stream your own licensed original audio files (`.mp3`, `.m4a`, `.wav`, `.ogg`, `.opus`, `.flac`, `.aac`):
+**Music API streaming (default):** the moment you select any track — in the Radio deck, the Radio Wheel, or the iFruit Music app — the game looks it up through the free **Apple Music / iTunes Search API** (`src/audio/MusicApi.ts`) and streams the real song instantly. Resolved rows carry a **`LIVE`** badge; the Now Playing panel shows *Apple Music API Stream* with album/genre tooltips. Lookups are cached per session, and a confident artist+title match is always required (covers/karaoke/remix noise is rejected). If there is no internet or no confident match, the tempo- and key-matched Web Audio instrumental riddim plays seamlessly instead.
+
+Playback source priority per song: **local import / `manifest.json` file → music API stream → built-in instrumental**.
 
 ### Option A — One-Click In-Game Import (Fastest)
 
@@ -221,9 +223,10 @@ GTA-V_clone/
     ├── style.css              # GTA V UI styling & Xbox/PlayStation controller glyphs
     ├── types.ts               # Shared types, character/vehicle/weapon/radio definitions
     ├── audio/
+    │   ├── MusicApi.ts         # Apple Music (iTunes Search) API client: resolves & streams real songs
     │   └── SoundtrackData.ts  # 9-track Stonebwoy & Kweku Smoke catalog & arrangements
     ├── core/
-    │   ├── AudioEngine.ts     # Web Audio sequencer, MP3 streamer, engine/combat/UI SFX
+    │   ├── AudioEngine.ts     # Web Audio sequencer, music-API/MP3 streamer, engine/combat/UI SFX
     │   ├── CameraController.ts# Orbit/chase camera, intro drop, sky-switch & stunt cam
     │   ├── GamepadManager.ts  # W3C Gamepad API polling, deadzones, glyphs & haptics
     │   └── InputManager.ts    # Keyboard, mouse & Pointer Lock input

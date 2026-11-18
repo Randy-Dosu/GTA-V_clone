@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   GOLD_COAST_ROTATION_IDS,
   INITIAL_SOUNDTRACK,
@@ -22,6 +22,62 @@ import { TrafficAndPeds } from '../src/world/TrafficAndPeds';
 import { WORLD_BOUNDS } from '../src/world/WorldData';
 
 describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () => {
+  // ===================== Music API test double =====================
+  const originalFetch = globalThis.fetch;
+  const ITUNES_FIXTURES = [
+    {
+      trackName: 'Sober',
+      artistName: 'Kweku Smoke',
+      collectionName: 'Sober - Single',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/preview/kweku-smoke-sober.m4a',
+      artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/sober/100x100bb.jpg',
+      primaryGenreName: 'Ghanaian Pop',
+      releaseDate: '2023-05-12T07:00:00Z',
+    },
+    {
+      trackName: 'Hero',
+      artistName: 'Stonebwoy',
+      collectionName: 'Hero - Single',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/preview/stonebwoy-hero.m4a',
+      artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/hero/100x100bb.jpg',
+      primaryGenreName: 'Reggae',
+      releaseDate: '2021-03-05T07:00:00Z',
+    },
+    {
+      // Karaoke noise that the matcher must reject
+      trackName: 'Survivor (Karaoke Version)',
+      artistName: 'Studio Union',
+      previewUrl: 'https://audio-ssl.itunes.apple.com/preview/karaoke-survivor.m4a',
+      artworkUrl100: 'https://is1-ssl.mzstatic.com/image/thumb/karaoke/100x100bb.jpg',
+      primaryGenreName: 'Karaoke',
+      releaseDate: '2020-01-01T07:00:00Z',
+    },
+  ];
+  let apiCallCount = 0;
+
+  /** Mock global fetch: iTunes Search API shaped responses, everything else unreachable */
+  const installApiMock = (mode: 'none' | 'fixture' | 'fail'): void => {
+    apiCallCount = 0;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('itunes.apple.com')) {
+        apiCallCount++;
+        if (mode === 'fail') throw new Error('music api unreachable');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ results: mode === 'fixture' ? ITUNES_FIXTURES : [] }),
+        } as unknown as Response;
+      }
+      throw new Error('offline in tests');
+    }) as typeof fetch;
+  };
+
+  beforeEach(() => installApiMock('none'));
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
   it('contains the exact 9 requested Kweku Smoke and Stonebwoy songs with valid musical data', () => {
     expect(INITIAL_SOUNDTRACK.length).toBe(9);
 
@@ -257,5 +313,50 @@ describe('Stonebwoy & Kweku Smoke Soundtrack, AudioEngine & Full GTA V UI', () =
     const shaderSrc = fs.readFileSync(path.join(rootDir, 'src/graphics/SkyAndOcean.ts'), 'utf8');
     expect(shaderSrc).toContain('gl_Position');
     expect(shaderSrc).toContain('gl_FragColor');
+  });
+
+  it('resolves songs from the music API and streams the real song the moment it is selected', async () => {
+    installApiMock('fixture');
+    const audio = new AudioEngine();
+    audio.unlock();
+
+    const sober = audio.catalog.find((s) => s.id === 'kweku-smoke-sober')!;
+    expect(sober.audioUrl).toBeUndefined();
+
+    // Direct resolution binds the real streaming preview + metadata
+    const result = await audio.ensureApiAudio(sober);
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe('apple-music-api');
+    expect(result!.previewUrl).toBe('https://audio-ssl.itunes.apple.com/preview/kweku-smoke-sober.m4a');
+    expect(sober.audioUrl).toBe(result!.previewUrl);
+    expect(audio.getApiTrack(sober.id)?.album).toBe('Sober - Single');
+    expect(audio.getApiTrack(sober.id)?.genre).toBe('Ghanaian Pop');
+
+    // Cached lookups make no extra network call
+    const callsBefore = apiCallCount;
+    await audio.ensureApiAudio(sober);
+    expect(apiCallCount).toBe(callsBefore);
+
+    // Selecting a track via the radio path triggers the same resolution & stream binding
+    const hero = audio.catalog.find((s) => s.id === 'stonebwoy-hero')!;
+    audio.playSongById(hero.id, hero.station, false);
+    await audio.ensureApiAudio(hero); // same in-flight promise (deduped)
+    expect(hero.audioUrl).toBe('https://audio-ssl.itunes.apple.com/preview/stonebwoy-hero.m4a');
+
+    // Covers/karaoke noise is rejected: no confident match -> instrumental fallback stays
+    const survivor = audio.catalog.find((s) => s.id === 'kweku-smoke-survivor')!;
+    const missed = await audio.ensureApiAudio(survivor);
+    expect(missed).toBeNull();
+    expect(survivor.audioUrl).toBeUndefined();
+    expect(audio.getApiTrack(survivor.id)).toBeNull();
+
+    // Network failure degrades cleanly to the built-in instrumental engine
+    installApiMock('fail');
+    const offline = new AudioEngine();
+    const faith = offline.catalog.find((s) => s.id === 'kweku-smoke-faith')!;
+    const failed = await offline.ensureApiAudio(faith);
+    expect(failed).toBeNull();
+    expect(faith.audioUrl).toBeUndefined();
+    expect(offline.getStationTracks('gold_coast').length).toBe(9);
   });
 });

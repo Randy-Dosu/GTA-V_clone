@@ -397,7 +397,7 @@ export class UIManager {
 
     const st = this.audio.getStation();
     const song = this.audio.getCurrentSong();
-    const mp3Count = this.audio.getRealAudioCount();
+    const mp3Count = this.audio.getImportedAudioCount();
 
     // 1. Live Now Playing bar + Transport + Import MP3
     const nowCard = document.createElement('div');
@@ -406,15 +406,20 @@ export class UIManager {
 
     const meta = document.createElement('div');
     meta.className = 'radio-now-meta';
+    const nowApi = song ? this.audio.getApiTrack(song.id) : null;
     meta.innerHTML = `
       <div class="radio-now-station">${st.name}${st.host ? ` &bull; ${st.host}` : ''}</div>
-      <div class="radio-now-title">${
+      <div class="radio-now-title" ${nowApi ? `title="${nowApi.album} &bull; ${nowApi.genre}"` : ''}>${
         song ? `${song.artist} &mdash; ${song.title}` : 'Soundtrack Muted (Radio Off)'
       }</div>
       <div class="radio-now-sub">${
         song
           ? `${song.vibe} &bull; ${song.bpm} BPM &bull; ${
-              song.audioUrl ? 'Original Audio Streaming' : 'In-Game Instrumental Riddim'
+              nowApi
+                ? 'Apple Music API Stream'
+                : song.audioUrl
+                  ? 'Original Audio Streaming'
+                  : 'In-Game Instrumental Riddim'
             }`
           : 'Select any station or song below to resume the soundtrack'
       }</div>
@@ -487,12 +492,18 @@ export class UIManager {
     list.className = 'radio-tracklist';
     for (const tr of tracks) {
       const isPlaying = !!song && song.id === tr.id && st.id !== 'off' && !this.audio.isMusicPaused;
+      const apiTr = this.audio.getApiTrack(tr.id);
       const row = document.createElement('button');
       row.type = 'button';
       row.className = `radio-track-btn ${isPlaying ? 'playing' : ''}`;
       row.dataset.radioNav = '1';
-      const badgeCls = isPlaying ? 'live' : tr.audioUrl ? 'mp3' : '';
-      const badgeTxt = isPlaying ? 'PLAYING' : tr.audioUrl ? 'AUDIO' : `${tr.bpm} BPM`;
+      if (apiTr) {
+        row.title = `${apiTr.album ? `${apiTr.album} • ` : ''}${
+          apiTr.genre ? `${apiTr.genre} • ` : ''
+        }streamed via Apple Music API`;
+      }
+      const badgeCls = isPlaying ? 'live' : apiTr || tr.audioUrl ? 'mp3' : '';
+      const badgeTxt = isPlaying ? 'PLAYING' : apiTr ? 'LIVE' : tr.audioUrl ? 'AUDIO' : `${tr.bpm} BPM`;
       row.innerHTML = `
         <span class="rt-info">
           <span class="rt-title">${tr.title}</span>
@@ -514,7 +525,7 @@ export class UIManager {
     const note = document.createElement('div');
     note.className = 'radio-footnote';
     note.textContent =
-      'Built-in Reggae, Dancehall, Afro-Highlife, Gospel Trap & GH Drill instrumentals play automatically. Click "+ Import MP3s" anytime to stream your own Stonebwoy & Kweku Smoke audio files (auto-matched by song title).';
+      'Every song is resolved through the Apple Music (iTunes Search) API and streams the moment you select it — LIVE rows are real API streams. Without internet, the built-in Reggae, Dancehall, Afro-Highlife, Gospel Trap & GH Drill instrumentals play automatically. Click "+ Import MP3s" anytime to use your own audio files (auto-matched by song title).';
     deck.appendChild(note);
 
     container.appendChild(deck);

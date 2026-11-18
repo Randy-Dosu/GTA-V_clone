@@ -29,7 +29,7 @@
 * **Three Protagonists, Missions & LSPD:** Switch seamlessly between **Franklin**, **Michael**, and **Trevor** via the signature GTA V satellite sky-zoom camera with unique Special Abilities, tackle 4 multi-stage Story Missions (`F`, `S`, `L`, `M`) with street-snapped GPS routing, customize cars at **Los Santos Customs**, gear up at **Ammu-Nation**, and evade 1–5 star LSPD pursuits.
 * **Real-Time PBR Graphics & Post-Processing:** Custom GLSL atmospheric sky dome and animated Pacific Ocean shaders, dynamic day/sunset/night cycle, PMREM environment reflections, automotive clearcoat materials, 2048px soft directional shadows, ACES Filmic tone mapping, and MSAA HDR bloom.
 * **Full Keyboard, Mouse & W3C Gamepad Support:** Plug-and-play Xbox, PlayStation (DualSense / DualShock), and Bluetooth controller support featuring analog stick/trigger vehicle and helicopter physics, automatic Xbox/PlayStation HUD glyphs, `dual-rumble` haptics, radial wheels, and full console navigation across every menu and map.
-* **Stonebwoy & Kweku Smoke Soundtrack:** Curated 9-track radio across **Gold Coast FM**, **BHIM Nation 101.9** (*People Dey*, *Run Go*, *Send Dem a Prayer*, *Hero*, *Jejereje*), and **Scatter Der 96.5** (*Sober*, *Faith*, *Survivor*, *Hallelujah*) with built-in Web Audio Reggae, Dancehall, Afro-Highlife, Gospel Trap, and GH Drill instrumentals plus one-click local MP3 streaming.
+* **Stonebwoy & Kweku Smoke Soundtrack:** Curated 9-track radio across **Gold Coast FM**, **BHIM Nation 101.9** (*People Dey*, *Run Go*, *Send Dem a Prayer*, *Hero*, *Jejereje*), and **Scatter Der 96.5** (*Sober*, *Faith*, *Survivor*, *Hallelujah*). Selecting any song resolves it through the **Apple Music (iTunes Search) API** and streams the real track instantly (`LIVE` badge) — with local MP3 import support and built-in Web Audio Reggae, Dancehall, Afro-Highlife, Gospel Trap, and GH Drill instrumentals as the offline fallback.
 
 ---
 
@@ -65,6 +65,7 @@
                                                     │ Audio & Soundtrack   │
                                                     │ • AudioEngine (SFX)  │
                                                     │ • SoundtrackData     │
+                                                    │ • MusicApi (Apple)   │
                                                     │ • Local MP3 Streamer │
                                                     └──────────────────────┘
 ```
